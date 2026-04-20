@@ -1,0 +1,4 @@
+/*
+This will contain all dockwidgets that will rendered on the right side of the screen
+
+*/

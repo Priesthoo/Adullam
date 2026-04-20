@@ -1,0 +1,18 @@
+#ifndef MATERIAL_ENUM_HPP
+#define MATERIAL_ENUM_HPP
+
+enum MATERIALCOLOR{
+  MC_BASE,
+  MC_AMBIENT,
+  MC_DIFFUSE,
+  MC_SPECULAR,
+  MC_EMISSIVE
+};
+
+
+
+
+
+
+
+#endif

@@ -1,0 +1,1 @@
+#include<ObjectInfoWidget.hpp>

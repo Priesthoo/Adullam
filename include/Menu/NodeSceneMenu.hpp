@@ -1,0 +1,45 @@
+#pragma once
+#include<QtWidgets/QMenu>
+#include<iostream>
+#include<memory>
+using namespace std;
+class NodeSceneMenu:public QMenu{
+private:
+std::unique_ptr<QAction> deleteNodeAction;
+std::unique_ptr<QAction> compileNodesAction;
+std::unique_ptr<QAction> autoCompileAction;
+std::unique_ptr<QAction> copyNodeAction;
+std::unique_ptr<QAction> pasteNodeAction;
+public:
+NodeSceneMenu(){
+    deleteNodeAction=make_unique<QAction>(tr("Delete Node"),nullptr);
+    compileNodesAction=make_unique<QAction>(tr("Compile Nodes"),nullptr);
+    autoCompileAction=make_unique<QAction>(tr("Auto Compile"),nullptr);
+    autoCompileAction->setCheckable(true);
+    copyNodeAction=make_unique<QAction>(tr("Copy"),nullptr);
+    pasteNodeAction=make_unique<QAction>(tr("Paste"),nullptr);
+    addAction(deleteNodeAction.get());
+    addAction(compileNodesAction.get());
+    addAction(autoCompileAction.get());
+    addAction(copyNodeAction.get());
+    addAction(pasteNodeAction.get());
+
+    
+    return;
+}
+QAction* DeleteNodeAction() const{
+    return deleteNodeAction.get();
+}
+QAction* CompileNodesAction() const{
+    return compileNodesAction.get();
+}
+QAction* AutoCompileAction() const{
+    return autoCompileAction.get();
+}
+QAction* CopyNodeAction() const{
+    return copyNodeAction.get();
+}
+QAction* PasteNodeAction() const{
+    return pasteNodeAction.get();
+}
+};

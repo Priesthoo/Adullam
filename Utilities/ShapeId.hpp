@@ -1,0 +1,18 @@
+#ifndef SHAPEID_HPP
+#define SHAPEID_HPP
+enum SHAPE_ID{
+SID_CIRCLE,
+SID_LINE,
+SID_BEIZER,
+SID_POLYGON,
+SID_POLYLINE,
+SID_ARC,
+SID_NONE
+};
+
+
+
+
+
+
+#endif
