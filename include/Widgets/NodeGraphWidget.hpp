@@ -17,6 +17,9 @@
 #include<exception>
 #include<NodeSceneMenu.hpp>
 #include<AIS_InteractiveContext.hxx>
+#include<QtWidgets/QFileDialog>
+#include<QtWidgets/QInputDialog>
+#include<QtCore/QFileInfo>
 #include<functional>
 #include<iostream>
 using namespace std;
@@ -102,7 +105,8 @@ EdgeNode* receivedEdge=nullptr;
 bool CanDrawPointNode=false;
 bool IsCubeNodeSet=false;
 bool IsFloatNodeSet=false;
-
+QString FileName; //this is currently the File name of our node graph
+QByteArray fileArray;
 
 NodeGraphWidget(QWidget* parent_widget,Handle(AIS_InteractiveContext)& context_1):GraphicsView(parent_widget),context{context_1}{
    Registry.reset(new NodeRegistry());
@@ -192,7 +196,7 @@ Registry->registerModel<PrimitiveTorusNode>(tr("Primitive Shapes"));
    QObject::connect(nodeSceneMenu->CopyNodeAction(),&QAction::triggered,this,&NodeGraphWidget::OnHandleCopy);
    QObject::connect(nodeSceneMenu->PasteNodeAction(),&QAction::triggered,this,&NodeGraphWidget::OnHandlePaste);
    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
-   
+   connect(nodeSceneMenu->SaveFileAction(),&QAction::triggered,this,&NodeGraphWidget::OnSaveNCADFile);
 }
 void LoopModelAndFindShape(const TopoDS_Shape& shape){
   auto gscene=dynamic_cast<DataFlowGraphicsScene*>(nodeScene());
@@ -624,6 +628,7 @@ void EmitParentShape(const TopoDS_Shape& shape);
 void EmitFaceId(const int& Id);
 void EmitEdge(const TopoDS_Shape& edge);
 void onDestroyPreviousObject();
+void emitCurrentFile(const QString& str);
 //public slots
 public slots:
 void OnReceiveAIS_Shape(const Handle(CustomAIS_Shape)& shape){
@@ -782,6 +787,46 @@ void OnHandleCopy(){
 void OnHandlePaste(){
   vaction=VA_PASTE;
   return;
+}
+void OnSaveNCADFile(){
+   auto gscene=dynamic_cast<DataFlowGraphicsScene*>(nodeScene());
+       if(!gscene){
+        return;
+       }
+  
+   bool Ok;
+   if(FileName==tr("")){
+       FileName=QInputDialog::getText(nullptr,tr("NodeCAD Text Input Dialog"),tr("Filename"),QLineEdit::Normal,tr(""),&Ok);
+       if(Ok){
+        fileArray=QJsonDocument(gscene->GraphModel()->save()).toJson();
+
+         emit emitCurrentFile(FileName);
+       } // register it to the current directory
+      
+   }
+   else{
+    //Write To a File, we believe that it is written to the filename that has a filepath
+      if(!QFileInfo::exists(FileName)){
+           cout<<"File Does not Exist"<<"\n";
+      return;
+      }
+     fileArray=QJsonDocument(gscene->GraphModel()->save()).toJson();
+    QFile file(FileName);
+
+    if(file.open(QIODevice::WriteOnly)){
+       file.write(fileArray);
+       file.close();
+    }
+
+
+   }
+}
+void OnSaveAsNCAD(){
+  
+  return;
+}
+void OnOpenNCADFile(){
+   return;
 }
 /*void OnUpdateNodeModel(const QVariant&  value){
   auto gscene=dynamic_cast<DataFlowGraphicsScene*>(nodeScene());

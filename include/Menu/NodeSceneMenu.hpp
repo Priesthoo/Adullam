@@ -10,6 +10,8 @@ std::unique_ptr<QAction> compileNodesAction;
 std::unique_ptr<QAction> autoCompileAction;
 std::unique_ptr<QAction> copyNodeAction;
 std::unique_ptr<QAction> pasteNodeAction;
+std::unique_ptr<QAction> saveFileAction;
+std::unique_ptr<QAction> saveAsAction;
 public:
 NodeSceneMenu(){
     deleteNodeAction=make_unique<QAction>(tr("Delete Node"),nullptr);
@@ -18,11 +20,16 @@ NodeSceneMenu(){
     autoCompileAction->setCheckable(true);
     copyNodeAction=make_unique<QAction>(tr("Copy"),nullptr);
     pasteNodeAction=make_unique<QAction>(tr("Paste"),nullptr);
+    saveFileAction=make_unique<QAction>(tr("Save .nCAD"),nullptr);
+    saveAsAction=std::make_unique<QAction>(tr("Save As"),nullptr);
+
     addAction(deleteNodeAction.get());
     addAction(compileNodesAction.get());
     addAction(autoCompileAction.get());
     addAction(copyNodeAction.get());
     addAction(pasteNodeAction.get());
+    addAction(saveFileAction.get());
+    addAction(saveAsAction.get());
 
     
     return;
@@ -41,5 +48,11 @@ QAction* CopyNodeAction() const{
 }
 QAction* PasteNodeAction() const{
     return pasteNodeAction.get();
+}
+QAction* SaveFileAction() const{
+    return saveFileAction.get();
+}
+QAction* SaveAsAction() const{
+    return saveAsAction.get();
 }
 };

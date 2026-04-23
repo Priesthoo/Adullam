@@ -33,6 +33,8 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
      menubar->addAction(FileAction.get());
      menubar->addAction(ModelAction.get());
      Splitter->addWidget(tabwidget.get());
+     fileSystemWidget=std::make_unique<TreeViewWidget>(nullptr);
+
      tabwidget_1.reset(new TabWidget(Splitter.get()));
      tabwidget_1->setTabsClosable(false);
      tabwidget_1->setTabPosition(QTabWidget::North);
@@ -42,6 +44,7 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
      Splitter->setSizes({500,400});
      colorwidget.reset(new ColorCollectionWidget(nullptr));
      tabwidget_1->addTab(nodewidget.get(),tr("NodeGraph"));
+     tabwidget_1->addTab(fileSystemWidget.get(),tr("File System"));
      fnodewidget.reset(new FloatNodeWidget(tr("Input"),0.0));
      surface_widget->SetSurfaceInfos(shape);
 
@@ -136,5 +139,10 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
    connect(sceneSettingWidget->highlightSection()->EdgeCheckBox(),&QCheckBox::toggled,this,&Window_Frame::OnGetEdgeId);
    connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitFace,this,&Window_Frame::OnHandleFace);
    connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitFaceBool,this,&Window_Frame::OnHandleFaceBool);
+   connect(FileActionMenu->openFolderAction.get(),&QAction::triggered,this,&Window_Frame::OnOpenCurrentFolder);
+   connect(this,&Window_Frame::emitCurrentFolder,this,&Window_Frame::onHandleEmittedFolder);
+   connect(nodewidget.get(),&NodeGraphWidget::emitCurrentFile,this,&Window_Frame::onWriteFileToPath);
+   
+
 }
 

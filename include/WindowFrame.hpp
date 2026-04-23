@@ -19,12 +19,15 @@
 #include<SceneSettingDockWidget.hpp>
 #include<DrawCircleWidget.hpp>
 #include<DrawCubeWidget.hpp>
+#include<TreeWidget.hpp>
 #include<DrawCubeDialog.hpp>
 #include<ObjectPresentationWidget.hpp>
 #include<BooleanWidget.hpp>
 #include<ColourCollectionWidget.hpp>
 #include<ObjectInfoWidget.hpp>
 #include<SurfaceInfoWidget.hpp>
+#include<QtWidgets/QFileDialog>
+
 #include<iostream>
 using namespace Shape_Utility;
 using namespace SURFACE;
@@ -56,6 +59,7 @@ class Window_Frame:public QMainWindow{
     QPalette WindowFramePalette;
     std::unique_ptr<TabWidget> tabwidget;
     std::unique_ptr<TabWidget> tabwidget_1;  //This tabwidgets will be used to display Graphics View,it will contained by the splitter
+    std::unique_ptr<TreeViewWidget> fileSystemWidget;
     std::unique_ptr<ObjectPresentationWidget> objprswidget;
     std::unique_ptr<ObjectInfoWidget> objinfowidget;  //this will show the properties of the object to display
     Handle(CustomAIS_Shape) shape=new CustomAIS_Shape(DrawCube(80));
@@ -63,7 +67,7 @@ class Window_Frame:public QMainWindow{
     SurfaceInfo sfaceinfo;
     float cubeSize=0.0f; //This variable is always set when we enabled an object DrawCubeWidget
     DrawCubeDialog* dcubedialog=nullptr;
-
+    QString currentWorkingDirectory=QString();
 
   public:
   Window_Frame(QWidget* parent_widget);
@@ -97,6 +101,7 @@ class Window_Frame:public QMainWindow{
   void OnSendShape(const TopoDS_Shape& shape);
   void OnSendTransform(const gp_Trsf& transform);
   void IsDone();
+  void emitCurrentFolder(QString Folder);
   public slots:
   void OnSetToCurrentCentralWidget(QWidget* widget){
     return;
@@ -1280,8 +1285,91 @@ void OnHandleFaceBool(bool value){
   nodewidget->shapedraw=SP_NULL;
   return;
 }
-};
+void OnOpenCurrentFolder(){
+  QFileDialog dialog(this,tr("NodeCAD File Dialog"));
+  dialog.setFileMode(QFileDialog::Directory);
+  dialog.setViewMode(QFileDialog::Detail);
 
+  if(dialog.exec()){
+    currentWorkingDirectory=dialog.selectedFiles().first();
+   emit emitCurrentFolder(currentWorkingDirectory);
+    return;
+  }
+  return;
+}
+void onHandleEmittedFolder(QString Folder){
+  if(fileSystemWidget){
+    fileSystemWidget->SetRootPath(Folder);
+    if(tabwidget_1->indexOf(fileSystemWidget.get())!=-1){ //that is,it is found
+       tabwidget_1->setTabText(tabwidget_1->indexOf(fileSystemWidget.get()),Folder);
+       return;
+   }   
+   else{
+     fileSystemWidget->SetRootPath(Folder);
+    tabwidget_1->addTab(fileSystemWidget.get(),Folder);
+    return;
+   }
+  }
+  
+  return;
+}
+void onWriteFileToPath(const QString& str){
+  
+  if(currentWorkingDirectory==tr("")){
+    OnOpenCurrentFolder();
+    if(currentWorkingDirectory!=tr("")){
+      QModelIndex index=fileSystemWidget->currentIndex();
+      if(!index.isValid()){ 
+      index=fileSystemWidget->Index(currentWorkingDirectory);
+      }
+      if(!fileSystemWidget->IsDir(index)){
+           index=fileSystemWidget->Index(currentWorkingDirectory);
+      }
+      QString folderPath=fileSystemWidget->FilePath(index);
+      QString fname=str;
+      if(!fname.endsWith(tr(".nCAD"),Qt::CaseSensitive)){
+         fname+=".nCAD";
+      }
+     
+      QFile file(folderPath + "/"+fname);
+      nodewidget->FileName=folderPath + "/" +fname;
+      if(file.open(QIODevice::WriteOnly)){
+        file.write(nodewidget->fileArray);
+        file.close();
+        fileSystemWidget->UpdateView(index);
+        std::cout<<"Successfully Saved"<<endl;
+      }
+
+
+  }
+  else{
+     QModelIndex index=fileSystemWidget->currentIndex();
+      if(!index.isValid()){ 
+      index=fileSystemWidget->Index(currentWorkingDirectory);
+      }
+      if(!fileSystemWidget->IsDir(index)){
+           index=fileSystemWidget->Index(currentWorkingDirectory);
+      }
+      QString folderPath=fileSystemWidget->FilePath(index);
+      QString fname=str;
+      if(!fname.endsWith(tr(".nCAD"),Qt::CaseSensitive)){
+         fname+=".nCAD";
+      }
+     
+      QFile file(folderPath + "/"+fname);
+         nodewidget->FileName=folderPath + "/" +fname;
+      if(file.open(QIODevice::WriteOnly)){
+        file.write(nodewidget->fileArray);
+        file.close();
+        fileSystemWidget->UpdateView(index);
+        std::cout<<"Successfully Saved"<<endl;
+      }
+  }
+  return;
+}
+}
+
+};
 
 
 

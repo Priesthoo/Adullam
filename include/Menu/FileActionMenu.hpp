@@ -2,80 +2,38 @@
 #define FILEMENU_HPP
 #include<QtWidgets/QMenu>
 #include<memory>
+using namespace std;
 class FileMenu:public QMenu{
 Q_OBJECT
-   std::unique_ptr<QAction> OpenStepFileAction;
-    std::unique_ptr<QAction> OpenIgesFileAction;
-    std::unique_ptr<QAction> AutoSaveAction;
-    std::unique_ptr<QAction> NewStepFileAction;
-    std::unique_ptr<QAction> NewIgesFileAction;
-    std::unique_ptr<QAction> SaveStepFileAction;
-    std::unique_ptr<QAction> SaveIgesFileAction;
-    std::unique_ptr<QAction> FileHistoryAction;
-    std::unique_ptr<QAction> CloseFileAction;
-
+public:
+unique_ptr<QAction> createNewFolder;
+unique_ptr<QAction> openFolderAction;  //open the current working folder
+unique_ptr<QAction> openNCADFile; //open .nCAD file(this stores the nodes)
+unique_ptr<QAction>saveIGESModel; //save IGES model
+unique_ptr<QAction>closeFolderAction; //close the current working folder
+std::unique_ptr<QAction> createNewFile; //open a new file and we will save the name using 
+std::unique_ptr<QAction> autoSave;
 public:
 bool isStepFile=false;  //This will be used when we want to create a step file
 bool isIgesFile=false;  //This will be used when we want an Iges File
 
 FileMenu():QMenu(){
- OpenStepFileAction.reset(new QAction(tr("Open .Step file"),nullptr));
- OpenStepFileAction->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_O));  //Use CTRL + O to open file 
-  addAction(OpenStepFileAction.get());
-  OpenIgesFileAction.reset(new QAction(tr("Open .Iges File"),nullptr));
-  OpenIgesFileAction->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_P));
-  addAction(OpenIgesFileAction.get());
-  addSeparator();
-  AutoSaveAction.reset(new QAction(tr("Auto Save"),nullptr));
-  AutoSaveAction->setCheckable(true); 
-  AutoSaveAction->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_A));
-  addAction(AutoSaveAction.get()); 
-  addSeparator(); 
-  NewStepFileAction.reset(new QAction(tr("New .Step File"),nullptr));
-  NewStepFileAction->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_N));
-  addAction(NewStepFileAction.get());
-
-  NewIgesFileAction.reset(new QAction(tr("New .Iges File"),nullptr));
-  NewIgesFileAction->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_M));
-  addAction(NewIgesFileAction.get());
-  addSeparator();
-  SaveStepFileAction.reset(new QAction(tr("Save .Step File"),nullptr));
-  SaveStepFileAction->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_S));
-  addAction(SaveStepFileAction.get());
-  SaveIgesFileAction.reset(new QAction(tr("Save.Iges File"),nullptr));
-  addAction(SaveIgesFileAction.get());
-  SaveIgesFileAction->setShortcut(QKeySequence(Qt::CTRL|Qt::Key_C));
-  addSeparator();
-   FileHistoryAction.reset(new QAction(tr("File History"),nullptr));
-   addSeparator();
-  CloseFileAction.reset(new QAction(tr("Close File"),nullptr));
- 
+ openFolderAction=std::make_unique<QAction>(tr("Open Folder"),nullptr);
+ openNCADFile=std::make_unique<QAction>(tr("Open .nCAD file"),nullptr);
+ saveIGESModel=std::make_unique<QAction>(tr("Save .IGES file"),nullptr); 
+ closeFolderAction=std::make_unique<QAction>(tr("Close Folder"),nullptr);
+ createNewFolder=std::make_unique<QAction>(tr("Create New Folder"),nullptr);
+ createNewFile=std::make_unique<QAction>(tr("Create New File"),nullptr);
+ autoSave=std::make_unique<QAction>(tr("Auto Save")); //this applies to .nCAD
+ autoSave->setCheckable(true);
+ addAction(createNewFolder.get());
+ addAction(createNewFile.get());
+ addAction(openFolderAction.get());
+ addAction(openNCADFile.get());
+ addAction(saveIGESModel.get());
+ addAction(autoSave.get());
+ addAction(closeFolderAction.get());
 }
-QAction* OpenStepFile(){
-  return OpenStepFileAction.get();
-}
-QAction* OpenIgesFile(){
-  return OpenIgesFileAction.get();
-}
-QAction* NewStepFile(){
-  return NewStepFileAction.get();
-}
-QAction* NewIgesFile(){
-  return NewIgesFileAction.get();
-}
-QAction* SaveStepFile(){
-  return SaveStepFileAction.get();
-}
-QAction* SaveIgesFile(){
-  return SaveIgesFileAction.get();
-}
-QAction* FileHistory(){
-  return FileHistoryAction.get();
-}
-QAction* CloseFile(){
-  return CloseFileAction.get();
-}
-
 signals:
 void CanOpenFileDialog(bool CanOpenFile);
 void CanCreateNewFile(bool CanSaveFile);

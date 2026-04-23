@@ -1,0 +1,96 @@
+{
+    "connections": [
+        {
+            "inPortIndex": 0,
+            "intNodeId": 6,
+            "outNodeId": 5,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 5,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 1,
+            "intNodeId": 0,
+            "outNodeId": 2,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 0,
+            "outNodeId": 4,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 4,
+            "outNodeId": 1,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 0,
+            "internal-data": {
+                "model-name": "Primitive Sphere"
+            },
+            "position": {
+                "x": 46,
+                "y": -99
+            }
+        },
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "Point Node"
+            },
+            "position": {
+                "x": -381,
+                "y": -73
+            }
+        },
+        {
+            "id": 2,
+            "internal-data": {
+                "model-name": "Float Data"
+            },
+            "position": {
+                "x": -345,
+                "y": 55
+            }
+        },
+        {
+            "id": 4,
+            "internal-data": {
+                "model-name": "Positioned Unit Z Direction"
+            },
+            "position": {
+                "x": -211,
+                "y": -81
+            }
+        },
+        {
+            "id": 5,
+            "internal-data": {
+                "model-name": "ConvertToAIS_ShapeNode"
+            },
+            "position": {
+                "x": 342,
+                "y": -59
+            }
+        },
+        {
+            "id": 6,
+            "internal-data": {
+                "model-name": "OutputNode"
+            },
+            "position": {
+                "x": 620,
+                "y": -34
+            }
+        }
+    ]
+}
