@@ -5,6 +5,7 @@
 #include<NodeDelegateModel>
 
 #include<iostream>
+#include<QtCore/QJsonObject>
 using namespace QtNodes;
 using namespace std;
 class SinglyPointNode:public NodeDelegateModel,public NodeInitializer{
@@ -13,8 +14,24 @@ class SinglyPointNode:public NodeDelegateModel,public NodeInitializer{
    Point InputValue;
    public:
    SinglyPointNode(){
-
+     return;
    }
+QJsonObject save() const override{
+    QJsonObject object=NodeDelegateModel::save();
+    object["X"]=InputValue.X();
+    object["Y"]=InputValue.Y();
+    object["Z"]=InputValue.Z();
+    return object;
+}
+void load(const QJsonObject& object) override{
+    InputValue.SetX(object["X"].toDouble(1.0));
+    InputValue.SetY(object["Y"].toDouble(1.0));
+    InputValue.SetZ(object["Z"].toDouble(1.0));
+    emit dataUpdated(0);
+    return;
+}
+
+
    void SetPoint(const Point& pnt){
      InputValue=pnt;
      cout<<InputValue.X()<<endl;

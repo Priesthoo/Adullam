@@ -11,12 +11,15 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
      FileActionMenu=new FileMenu;
      ModelActionMenu=new ModelMenu;
      ModifyActionMenu=new QMenu;
-     
+     editorMenu=std::make_unique<EditorMenu>();
+
      tabwidget->addTab(centralwidget_1.get(),tr("CAD View"));
      tabwidget->setTabsClosable(false);
      FileAction.reset(new QAction(tr("File"),menubar.get()));
      ModelAction.reset(new QAction(tr("Model"),menubar.get()));
      ModifyMenuAction.reset(new QAction(tr("Modify"),menubar.get()));
+     EditorAction=std::make_unique<QAction>(tr("Editor"),nullptr);
+
      dockwidget_1.reset(new DockWidget(this,tr("Item")));
      dockwidget_2.reset(new DockWidget(this,tr("")));
      setWindowTitle(tr("NodeCAD"));
@@ -30,8 +33,10 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
      objprswidget.reset(new ObjectPresentationWidget(nullptr));
      FileAction->setMenu(FileActionMenu);
      ModelAction->setMenu(ModelActionMenu);
+     EditorAction->setMenu(editorMenu.get());
      menubar->addAction(FileAction.get());
      menubar->addAction(ModelAction.get());
+     menubar->addAction(EditorAction.get());
      Splitter->addWidget(tabwidget.get());
      fileSystemWidget=std::make_unique<TreeViewWidget>(nullptr);
 
@@ -142,7 +147,9 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
    connect(FileActionMenu->openFolderAction.get(),&QAction::triggered,this,&Window_Frame::OnOpenCurrentFolder);
    connect(this,&Window_Frame::emitCurrentFolder,this,&Window_Frame::onHandleEmittedFolder);
    connect(nodewidget.get(),&NodeGraphWidget::emitCurrentFile,this,&Window_Frame::onWriteFileToPath);
-   
-
+   connect(FileActionMenu->openNCADFile.get(),QAction::triggered,this,&Window_Frame::OnOpenFileDialogForFile);
+   connect(this,&Window_Frame::emitCurrentFile,this,&Window_Frame::OnOpenNCAD);
+   connect(FileActionMenu->closeFolderAction.get(),&QAction::triggered,this,&Window_Frame::OnCloseFolder);
+   connect(FileActionMenu->createNewFolder.get(),&QAction::triggered,this,&Window_Frame::OnCreateFolder);
 }
 

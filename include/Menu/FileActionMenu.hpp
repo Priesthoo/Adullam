@@ -24,8 +24,7 @@ FileMenu():QMenu(){
  closeFolderAction=std::make_unique<QAction>(tr("Close Folder"),nullptr);
  createNewFolder=std::make_unique<QAction>(tr("Create New Folder"),nullptr);
  createNewFile=std::make_unique<QAction>(tr("Create New File"),nullptr);
- autoSave=std::make_unique<QAction>(tr("Auto Save")); //this applies to .nCAD
- autoSave->setCheckable(true);
+ autoSave=std::make_unique<QAction>(tr("Auto Save"),nullptr);
  addAction(createNewFolder.get());
  addAction(createNewFile.get());
  addAction(openFolderAction.get());

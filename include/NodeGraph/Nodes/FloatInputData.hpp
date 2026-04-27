@@ -9,6 +9,7 @@
 #include<iostream>
 #include<DoubleLineEdit.hpp>
 #include<iostream>
+#include<QtCore/QJsonObject>
 using QtNodes::NodeDelegateModel;
 using namespace std;
 class FloatInputNode :public NodeDelegateModel,public NodeInitializer{
@@ -18,12 +19,28 @@ Q_OBJECT
  
 shared_ptr<FloatNodeData> output_data;
 std::unique_ptr<DoubleEdit> double_edit;
-float InputValue=0.0f;
+float InputValue=1.0f;
 public:
 FloatInputNode(){
-   
+   return;
    
     
+}
+QJsonObject save() const override{
+   QJsonObject object=NodeDelegateModel::save();
+   object["InputValue"]=InputValue;
+   return object;
+}
+void load(const QJsonObject& object) override{
+     InputValue=object["InputValue"].toDouble(1.0);
+      if(!double_edit.get()){
+        double_edit.reset(new DoubleEdit(nullptr,QString::number(InputValue),8));
+       QObject::connect(double_edit.get(),&DoubleEdit::GetValue,this,&FloatInputNode::OnReceiveValue);
+
+    }
+ double_edit->SetValue(InputValue); 
+ emit dataUpdated(0);
+     return;
 }
 float GetData() const{
     if(output_data.get()){

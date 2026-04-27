@@ -27,7 +27,7 @@
 #include<ObjectInfoWidget.hpp>
 #include<SurfaceInfoWidget.hpp>
 #include<QtWidgets/QFileDialog>
-
+#include<EditorMenu.hpp>
 #include<iostream>
 using namespace Shape_Utility;
 using namespace SURFACE;
@@ -40,7 +40,7 @@ class Window_Frame:public QMainWindow{
     std::unique_ptr<QAction> FileAction;
     std::unique_ptr<QAction> ModelAction;
     std::unique_ptr<QAction> ModifyMenuAction;
-    std::unique_ptr<QAction> ViewAction;  //this is not a synonym of view action
+    std::unique_ptr<QAction> EditorAction;  //this is not a synonym of view action
     std::unique_ptr<NodeGraphWidget> nodewidget;
     std::unique_ptr<QStatusBar> statusbar_1;
     
@@ -56,6 +56,7 @@ class Window_Frame:public QMainWindow{
     FileMenu* FileActionMenu=nullptr;
     QMenu* ModifyActionMenu=nullptr;
     QAction* ShowGridAction=nullptr;
+    std::unique_ptr<EditorMenu> editorMenu;
     QPalette WindowFramePalette;
     std::unique_ptr<TabWidget> tabwidget;
     std::unique_ptr<TabWidget> tabwidget_1;  //This tabwidgets will be used to display Graphics View,it will contained by the splitter
@@ -102,6 +103,7 @@ class Window_Frame:public QMainWindow{
   void OnSendTransform(const gp_Trsf& transform);
   void IsDone();
   void emitCurrentFolder(QString Folder);
+  void emitCurrentFile(QString nCADFile);
   public slots:
   void OnSetToCurrentCentralWidget(QWidget* widget){
     return;
@@ -1338,9 +1340,11 @@ void onWriteFileToPath(const QString& str){
         file.close();
         fileSystemWidget->UpdateView(index);
         std::cout<<"Successfully Saved"<<endl;
+        nodewidget->isFileSaved=true;
       }
 
 
+  }
   }
   else{
      QModelIndex index=fileSystemWidget->currentIndex();
@@ -1363,12 +1367,95 @@ void onWriteFileToPath(const QString& str){
         file.close();
         fileSystemWidget->UpdateView(index);
         std::cout<<"Successfully Saved"<<endl;
+        nodewidget->isFileSaved=true;
       }
   }
   return;
-}
-}
 
+}
+void OnOpenFileDialogForFile(){
+    QFileDialog dialog(this,tr("NodeCAD File Dialog"),QDir::currentPath(),tr("CAD Files (*.nCAD)"));
+    dialog.setFileMode(QFileDialog::ExistingFiles);
+
+    if(dialog.exec()){
+      emitCurrentFile(dialog.selectedFiles().first());
+      return;
+    }
+    else{
+      return;
+    }
+}
+void OnOpenNCAD(const QString& str){
+  if(str==tr("")){
+    return;
+  }
+  if(!nodewidget){
+    return;
+  }
+  if(!str.endsWith(tr(".nCAD"),Qt::CaseSensitive)){
+     cout<<"FileName Does Not End with .nCAD,Find the File name that ends with .nCAD"<<"\n";
+     return;
+  }
+  QFile file(str);
+  nodewidget->FileName=str;
+  if(file.open(QIODevice::ReadOnly)){
+    auto bytearray=file.readAll();
+    nodewidget->ClearScene();
+    nodewidget->LoadScene(QJsonDocument::fromJson(bytearray).object());
+     if(centralwidget_1){
+     centralwidget_1->OnClearView();
+     }
+    std::cout<<"Successful Loading"<<"\n";
+    nodewidget->isFiledSaved=true;
+    file.close();
+  }
+  return;
+}
+void OnCloseFolder(){ //to close a folder
+  if(currentWorkingDirectory==tr("")){
+    cout<<"No current Working Directory"<<"\n";
+    return;
+  }
+  if(!tabwidget_1){
+      return;
+  }
+  if(tabwidget_1->indexOf(fileSystemWidget.get())!=-1){
+    tabwidget_1->removeTab(tabwidget_1->indexOf(fileSystemWidget.get()));
+    fileSystemWidget->SetRootPath(tr(""));
+    currentWorkingDirectory=tr("");
+    nodewidget->FileName=tr("");
+  }
+   return;
+}
+void OnRenameFolder(){
+  fileSystemWidget->edit(fileSystemWidget->currentIndex());
+  return;
+}
+void OnCreateFolder(){
+  auto index=fileSystemWidget->currentIndex();
+  if(!index.isValid()){
+     bool Ok;
+  auto FileName=QInputDialog::getText(nullptr,tr("NodeCAD Text Input Dialog"),tr("Folder Name:"),QLineEdit::Normal,tr(""),&Ok);
+    if(!Ok && FileName.isEmpty()){
+         return;
+    }
+   fileSystemWidget->MakeDir(QModelIndex(),FileName);
+   return;
+  }
+  if(fileSystemWidget->IsDir(index)){
+  bool Ok;
+  auto FileName=QInputDialog::getText(nullptr,tr("NodeCAD Text Input Dialog"),tr("Folder Name:"),QLineEdit::Normal,tr(""),&Ok);
+    if(!Ok && FileName.isEmpty()){
+         return;
+    }
+   fileSystemWidget->MakeDir(index,FileName);
+  }
+  return;
+}
+void OnRenameFile(){
+  fileSystemWidget->edit(fileSystemWidget->currentIndex());
+  return;
+}
 };
 
 

@@ -4,7 +4,7 @@
 #include<memory>
 #include<BooleanNodeData.hpp>
 #include<QtWidgets/QCheckBox>
-
+#include<QtCore/QJsonObject>
 using QtNodes::NodeDelegateModel;
 
 using namespace std;
@@ -25,6 +25,16 @@ bool GetInputValue() const{
         return output_data->Data();
     }
     return false;
+}
+QJsonObject save() const override{
+    QJsonObject object=NodeDelegateModel::save();
+    object["Value"]=InputValue;
+    return object;
+}
+void load(const QJsonObject& object) override{
+    InputValue=object["Value"].toBool();
+    emit dataUpdated(0);
+    return;
 }
 void SetInputValue(const bool& value){
     if(output_data.get()){

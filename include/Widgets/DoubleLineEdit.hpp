@@ -45,6 +45,11 @@ void OnTextEdited(const QString& str){
     
     return;
 }
+void SetValue(const float val){
+    setText(QString::number(val));
+    emit GetValue(val);
+    return;
+}
 
 
 

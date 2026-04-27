@@ -981,6 +981,18 @@ void EnableManipulatorPart(const AIS_ManipulatorMode& theMode,Handle(AIS_Interac
    }
    return;
 }
+void OnClearView(){
+  for(auto iter=Shapes.begin();iter!=Shapes.end();++iter){
+      if(context->IsDisplayed(iter->second)){
+         context->Remove(iter->second,false);
+      }
+  }
+  if(!Shapes.empty()){
+    Shapes.clear();
+  }
+  view->Redraw();
+  return;
+}
 ~DrawingCentralWidget(){
   if(SelectedMenu){
     delete SelectedMenu;

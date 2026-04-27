@@ -40,7 +40,7 @@ QString caption() const override{
 QString name() const override{
     return caption();
 }
-
+ 
 NodeDataType dataType(PortType portType,PortIndex portIndex) const override{
     switch(portType){
         case PortType::In:{

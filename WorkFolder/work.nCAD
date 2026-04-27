@@ -1,0 +1,100 @@
+{
+    "connections": [
+        {
+            "inPortIndex": 0,
+            "intNodeId": 1,
+            "outNodeId": 3,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 1,
+            "intNodeId": 1,
+            "outNodeId": 4,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 3,
+            "outNodeId": 7,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 5,
+            "outNodeId": 1,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 6,
+            "outNodeId": 5,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 1,
+            "internal-data": {
+                "model-name": "Primitive Cube"
+            },
+            "position": {
+                "x": 113,
+                "y": -113
+            }
+        },
+        {
+            "id": 3,
+            "internal-data": {
+                "model-name": "Positioned Unit X Direction"
+            },
+            "position": {
+                "x": -150,
+                "y": -125
+            }
+        },
+        {
+            "id": 4,
+            "internal-data": {
+                "InputValue": 100,
+                "model-name": "Float Data"
+            },
+            "position": {
+                "x": -274,
+                "y": 18
+            }
+        },
+        {
+            "id": 5,
+            "internal-data": {
+                "model-name": "ConvertToAIS_ShapeNode"
+            },
+            "position": {
+                "x": 362,
+                "y": -68
+            }
+        },
+        {
+            "id": 6,
+            "internal-data": {
+                "model-name": "OutputNode"
+            },
+            "position": {
+                "x": 657,
+                "y": -36
+            }
+        },
+        {
+            "id": 7,
+            "internal-data": {
+                "X": 680,
+                "Y": 350,
+                "Z": 0,
+                "model-name": "Point Node"
+            },
+            "position": {
+                "x": -373,
+                "y": -144
+            }
+        }
+    ]
+}
