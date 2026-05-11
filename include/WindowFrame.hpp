@@ -28,7 +28,10 @@
 #include<SurfaceInfoWidget.hpp>
 #include<QtWidgets/QFileDialog>
 #include<EditorMenu.hpp>
+#include<QtWidgets/QApplication>
+#include<QtGui/QClipboard>
 #include<iostream>
+#include<LinePresentationWidget.hpp>
 using namespace Shape_Utility;
 using namespace SURFACE;
 class Window_Frame:public QMainWindow{
@@ -51,6 +54,7 @@ class Window_Frame:public QMainWindow{
     std::unique_ptr<DrawCubeWidget> dcubewidget;
     std::unique_ptr<ColorCollectionWidget> colorwidget; 
     std::unique_ptr<ColorCollectionWidget> colorwidget_1=std::make_unique<ColorCollectionWidget>(nullptr);
+    std::unique_ptr<EdgeWidget> edgeWidget=std::make_unique<EdgeWidget>();
     std::unique_ptr<QSplitter> Splitter;
     ModelMenu* ModelActionMenu=nullptr;
     FileMenu* FileActionMenu=nullptr;
@@ -1057,10 +1061,21 @@ void OnSpawnColorSelectionWidget(const int& index){
     dockwidget_2->RemoveWidget();
   }
   dockwidget_2->SetWidget(colorwidget_1.get());
-
+  colorwidget_1->isChosen(index);
   return;
 }
 void OnSetSelectionColorFromColorWidget(){
+  if(edgeWidget->shouldSet()){
+    if(centralwidget_1->ChosenShape){
+      centralwidget_1->ChosenShape->SetColor(colorwidget_1->GetChosenColor());
+      edgeWidget->colorPane()->SetColorFromOC(colorwidget_1->GetChosenColor());
+      if(centralwidget_1->context->IsDisplayed(centralwidget_1->ChosenShape)){
+         centralwidget_1->context->Redisplay(centralwidget_1->ChosenShape,true);
+      }
+    }
+    
+     return;
+  }
   if(colorwidget_1.get()){
      if(centralwidget_1.get()){
      sceneSettingWidget->hilisection->FaceColorWidget()->SetColorFromOC(colorwidget_1->GetChosenColor()); 
@@ -1076,6 +1091,10 @@ void OnHandleConstructPointNode(bool Checked){
   if(Checked==false){
     nodewidget->CanDrawPointNode=Checked;
   }
+  return;
+}
+void OnHandleFalseValue(){
+  nodewidget->CanDrawPointNode=false;
   return;
 }
 void OnSetValuesForTriple(const Point& pnt){
@@ -1117,7 +1136,11 @@ if(!nodewidget){
  }
  if(Checked==true){
   if(!centralwidget_1->ChosenShape.IsNull()){
-    emit OnSendShape(centralwidget_1->ChosenShape->Shape());
+   centralwidget_1->OnSearch(centralwidget_1->ChosenShape); 
+    
+ emit OnSendShape(centralwidget_1->ChosenShape->TransShape());
+    
+   
     
 }
   
@@ -1149,9 +1172,14 @@ void OnHandleSentShape(const TopoDS_Shape& shape){
  
 
   BRepBuilderAPI_Copy copiedShape(shape);
-  copiedShape.Perform(shape);
+  
   if(copiedShape.IsDone()){
    nodewidget->NodeInputShape=copiedShape.Shape();
+   if(centralwidget_1->ChosenShape){
+    nodewidget->NodeInitialShape=centralwidget_1->ChosenShape->Shape();
+   }
+   nodewidget->ShapeId=centralwidget_1->ShapeId;
+   LoadMessage(tr(""),QString("Current Id:")+QString::number(nodewidget->ShapeId));
   nodewidget->shapedraw=SP_SHAPE;  
   }
   
@@ -1276,6 +1304,8 @@ void OnHandleFace(const TopoDS_Face& face){
   if(!nodewidget){
     return;
   }
+  nodewidget->ParentId=centralwidget_1->ParentIndex;
+  nodewidget->subShapeId=centralwidget_1->faceIndex;
   nodewidget->nodeInputFace=face;
   nodewidget->shapedraw=SP_FACE;
   return;
@@ -1284,7 +1314,19 @@ void OnHandleFaceBool(bool value){
   if(!nodewidget){
     return;
   }
+  centralwidget_1->faceIndex=-1;
+  centralwidget_1->edgeIndex=-1;
+  centralwidget_1->ParentIndex=-1;
+  nodewidget->subShapeId=-1;
+  nodewidget->ParentId=-1;
   nodewidget->shapedraw=SP_NULL;
+  return;
+}
+void OnHandleSentEdge(const TopoDS_Edge& edge){
+  nodewidget->ParentId=centralwidget_1->ParentIndex;
+  nodewidget->subShapeId=centralwidget_1->edgeIndex;
+  nodewidget->nodeInputEdge=edge;
+  nodewidget->shapedraw=SP_EDGE;
   return;
 }
 void OnOpenCurrentFolder(){
@@ -1373,6 +1415,7 @@ void onWriteFileToPath(const QString& str){
   return;
 
 }
+
 void OnOpenFileDialogForFile(){
     QFileDialog dialog(this,tr("NodeCAD File Dialog"),QDir::currentPath(),tr("CAD Files (*.nCAD)"));
     dialog.setFileMode(QFileDialog::ExistingFiles);
@@ -1406,7 +1449,7 @@ void OnOpenNCAD(const QString& str){
      centralwidget_1->OnClearView();
      }
     std::cout<<"Successful Loading"<<"\n";
-    nodewidget->isFiledSaved=true;
+    nodewidget->isFileSaved=true;
     file.close();
   }
   return;
@@ -1427,10 +1470,7 @@ void OnCloseFolder(){ //to close a folder
   }
    return;
 }
-void OnRenameFolder(){
-  fileSystemWidget->edit(fileSystemWidget->currentIndex());
-  return;
-}
+
 void OnCreateFolder(){
   auto index=fileSystemWidget->currentIndex();
   if(!index.isValid()){
@@ -1450,10 +1490,258 @@ void OnCreateFolder(){
     }
    fileSystemWidget->MakeDir(index,FileName);
   }
+  else{
+    bool Ok;
+  auto FileName=QInputDialog::getText(nullptr,tr("NodeCAD Text Input Dialog"),tr("Folder Name:"),QLineEdit::Normal,tr(""),&Ok);
+    if(!Ok && FileName.isEmpty()){
+         return;
+    }
+    if(currentWorkingDirectory.isEmpty()){
+       OnOpenCurrentFolder();
+    }
+   fileSystemWidget->MakeDir(fileSystemWidget->Index(currentWorkingDirectory),FileName);
+
+  }
   return;
 }
-void OnRenameFile(){
-  fileSystemWidget->edit(fileSystemWidget->currentIndex());
+
+
+void ActivateCADView(bool value){
+  if(value){
+    if(tabwidget->indexOf(centralwidget_1.get())!=-1){
+      if(tabwidget->currentWidget()!=centralwidget_1.get()){
+          tabwidget->setCurrentWidget(centralwidget_1.get());
+      }
+    }
+    else{
+      tabwidget->addTab(centralwidget_1.get(),tr("CAD View"));
+      tabwidget->setCurrentWidget(centralwidget_1.get());
+    }
+  }
+  else{
+    if(tabwidget->indexOf(centralwidget_1.get())!=-1){
+       tabwidget->removeTab(tabwidget->indexOf(centralwidget_1.get()));
+    }
+  }
+  return;
+}
+void ActivateNodeView(bool value){
+  if(value){
+    if(tabwidget_1->indexOf(nodewidget.get())!=-1){
+      if(tabwidget_1->currentWidget()!=nodewidget.get()){
+          tabwidget_1->setCurrentWidget(nodewidget.get());
+      }
+    }
+    else{
+      tabwidget_1->addTab(nodewidget.get(),tr("NodeGraph"));
+      tabwidget_1->setCurrentWidget(nodewidget.get());
+    }
+  }
+  else{
+    if(tabwidget_1->indexOf(nodewidget.get())!=-1){
+       tabwidget_1->removeTab(tabwidget_1->indexOf(nodewidget.get()));
+    }
+  }
+  return;
+}
+void ActivateFileView(bool value){
+  if(value){
+    if(tabwidget_1->indexOf(fileSystemWidget.get())!=-1){
+      if(tabwidget_1->currentWidget()!=fileSystemWidget.get()){
+          tabwidget_1->setCurrentWidget(fileSystemWidget.get());
+      }
+    }
+    else{
+      tabwidget_1->addTab(fileSystemWidget.get(),tr("File System"));
+      tabwidget_1->setCurrentWidget(fileSystemWidget.get());
+    }
+  }
+  else{
+    if(tabwidget_1->indexOf(fileSystemWidget.get())!=-1){
+       tabwidget_1->removeTab(tabwidget_1->indexOf(fileSystemWidget.get()));
+    }
+  }
+  return;
+}
+void OnHandleTreeViewFile(const QString& name){
+  OnOpenNCAD(name);
+  return;
+}
+void OnOpenNCADFromTreeView(){
+  if(!fileSystemWidget && !centralwidget_1){
+      LoadMessage(tr("Widget Warning"),tr("The two widgets were not created"));
+      return;
+  }
+  if(nodewidget){
+    nodewidget->ShouldClearScene();
+  }
+  auto index=fileSystemWidget->currentIndex();
+  if(fileSystemWidget->IsDir(index)){
+    LoadMessage(tr("Opening a Directory"),tr("Cannot Open a directory"));
+    return;
+  }
+  else{
+    auto filePath=fileSystemWidget->FilePath(index);
+    OnHandleTreeViewFile(filePath);
+    LoadMessage(tr("Opening a file"),tr("Opened a File Successfully"));
+    
+  }
+  return;
+}
+void OnCreateNewFile(){
+   bool Ok;
+  auto FileName=QInputDialog::getText(nullptr,tr("NodeCAD Text Input Dialog"),tr("Folder Name:"),QLineEdit::Normal,tr(""),&Ok);
+    if(!Ok && FileName.isEmpty()){
+        LoadMessage(tr("Text Input Failure"),tr("Failed To Analyze String"));
+
+         return;
+    }
+    onWriteFileToPath(FileName);
+    return;
+}
+void OnDeleteIndex(){
+  auto index=fileSystemWidget->currentIndex();
+  if(!index.isValid()){
+   LoadMessage(tr("Model Index Error"),tr("The Chosen Index is invalid"));
+   return;
+  }
+  fileSystemWidget->Remove(index);
+}
+void RenameFile(){
+  auto index=fileSystemWidget->currentIndex();
+  if(!index.isValid() || fileSystemWidget->IsDir(index)){
+    return;
+  }
+  QString filePath=fileSystemWidget->FilePath(index);
+
+  QFile file(filePath);
+  bool Ok;
+  QString newFilename=QInputDialog::getText(nullptr,tr("NodeCAD Text Input Dialog"),tr("New FileName:"),QLineEdit::Normal,tr("newfilename"),&Ok);
+  if(!Ok && newFilename.isEmpty()){
+    LoadMessage(tr("File Name Error"),tr("It is either the file name was empty or cannot process input"));
+    return;
+  }
+  if(!newFilename.endsWith(tr(".nCAD"),Qt::CaseSensitive)){
+  newFilename+=tr(".nCAD");
+  }
+  file.rename(newFilename);
+  fileSystemWidget->UpdateView(index);
+
+  return;  
+}
+void RenameFolder(){
+  auto index=fileSystemWidget->currentIndex();
+
+  QString filePath=fileSystemWidget->FilePath(index);
+  QFileInfo fileInfo(filePath);
+  
+  bool Ok;
+  QString newFoldername=QInputDialog::getText(nullptr,tr("NodeCAD Text Input Dialog"),tr("New FolderName:"),QLineEdit::Normal,tr("newfoldername"),&Ok);
+  if(!Ok && newFoldername.isEmpty()){
+    LoadMessage(tr("Folder Name Error"),tr("It is either the folder name was empty or cannot process input"));
+    return;
+  }
+  QDir fileDir(filePath);
+  bool result=fileDir.rename(fileInfo.fileName(),newFoldername);
+  if(!result){
+   LoadMessage(tr("Folder Renaming Error"),tr("Cannot Rename Folder,It is either the new folder name exist before or cannot process new folder name "));
+   return;
+  
+  }
+  fileSystemWidget->UpdateView(index);
+  return;
+}
+
+void CopyPath(){
+  auto index= fileSystemWidget->currentIndex();
+  if(!index.isValid()){
+     return;
+  }
+  QString pPath=fileSystemWidget->FilePath(index);
+    QFileInfo info(pPath);
+    auto clipBoard=QApplication::clipboard();
+    clipBoard->setText(info.absoluteFilePath());
+    return;
+  
+}
+void CopyRelativeFilePath(){
+auto homeindex=fileSystemWidget->Index(QDir::homePath());
+
+auto index=fileSystemWidget->currentIndex();
+QString filePath=fileSystemWidget->FilePath(index);
+
+QDir filedir(QDir::homePath());
+auto clipBoard=QApplication::clipboard();
+clipBoard->setText(filedir.relativeFilePath(filePath));
+return;
+
+}
+void OnShowEdgeWidget(){
+  if(!dockwidget_1){
+    LoadMessage(tr("Widget Error"),tr("Cannot Find DockWidget"));
+    return;
+  }
+  if(dockwidget_1->GetScrolledWidget()){
+    dockwidget_1->RemoveWidget();
+  }
+  dockwidget_1->SetWidget(edgeWidget.get());
+  return;
+}
+void OnHandleEdgePrs(const size_t ind){
+   edgeWidget->SetShouldSet(true);
+   centralwidget_1->shouldSetAction->setChecked(true);
+    if(dockwidget_2->GetScrolledWidget()){
+    dockwidget_2->RemoveWidget();
+  }
+  dockwidget_2->SetWidget(colorwidget_1.get()); 
+   colorwidget_1->isChosen(ind);
+   return;
+
+}
+void OnHandleShouldSet(bool value){
+  if(value==false){
+     edgeWidget->SetShouldSet(false);
+  }
+  return;
+}
+//Highlight the shape that corresponds to the Id 
+void OnHandleShapeId(const int& id){
+  if(id==-1){
+    LoadMessage(tr("ID Error"),tr("Cannot highlight an object using negative id"));
+    return;
+  }
+  centralwidget_1->OnHighlight(id);
+  return;
+}
+void OnHandleSent(){
+   if(!nodewidget){
+    return;
+   }
+   nodewidget->sentShape=centralwidget_1->SentShape;
+   nodewidget->sentId=centralwidget_1->SentShapeId;
+   std::cout<<"I am in HandleSent()"<<"\n";
+   nodewidget->OnFindSinglyShape();
+   return;
+}
+void OnHandleChosenFile(const QString& pfile){
+   OnOpenNCAD(pfile);
+  return;
+}
+void OnHandleSentWire(const TopoDS_Wire& wire){
+  nodewidget->chosenWire=wire;
+  nodewidget->shapedraw=SP_WIRE;
+  return;
+}
+void OnHandleShadeFace(const int& p,const int& c){
+  centralwidget_1->OnShadeFaceWithIndex(p,c);
+  return;
+}
+void OnHandleUnhighlightFace(const int& p,const int& c){
+  return;
+}
+void OnHandleEdgeSent(const TopoDS_Edge& edge){
+  nodewidget->nodeInputEdge=edge;
+  nodewidget->shapedraw=SP_EDGE;
   return;
 }
 };

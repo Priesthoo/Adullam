@@ -360,6 +360,9 @@ QCheckBox* pbrCheckBox() const{
 QComboBox* ShaderTypeComboBox() const{
   return shaderTypeCombox.get();
 }
+QCheckBox* ConvertBox() const{
+  return convertbox.get();
+}
 Graphic3d_MaterialAspect OutputMaterial() const{
   return outputMaterial;
 }

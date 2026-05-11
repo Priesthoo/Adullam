@@ -140,8 +140,7 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
    connect(nodewidget.get(),&NodeGraphWidget::EmitEdge,this,&Window_Frame::OnHighlightEdge);
    connect(centralwidget_1->ShowObjectInfo.get(),&QAction::triggered,this,&Window_Frame::OnShowObjectInfo);
    connect(centralwidget_1.get(),&DrawingCentralWidget:: OnEmitBoolValue,this,&Window_Frame::OnHandleFacePoint);
-   connect(sceneSettingWidget->highlightSection()->EditCheckBox(),&QCheckBox::toggled,this,&Window_Frame::OnGetFaceIndex);
-   connect(sceneSettingWidget->highlightSection()->EdgeCheckBox(),&QCheckBox::toggled,this,&Window_Frame::OnGetEdgeId);
+  
    connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitFace,this,&Window_Frame::OnHandleFace);
    connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitFaceBool,this,&Window_Frame::OnHandleFaceBool);
    connect(FileActionMenu->openFolderAction.get(),&QAction::triggered,this,&Window_Frame::OnOpenCurrentFolder);
@@ -151,5 +150,29 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
    connect(this,&Window_Frame::emitCurrentFile,this,&Window_Frame::OnOpenNCAD);
    connect(FileActionMenu->closeFolderAction.get(),&QAction::triggered,this,&Window_Frame::OnCloseFolder);
    connect(FileActionMenu->createNewFolder.get(),&QAction::triggered,this,&Window_Frame::OnCreateFolder);
+   connect(editorMenu->enableCADView.get(),&QAction::toggled,this,&Window_Frame::ActivateCADView);
+   connect(editorMenu->enableNodeGraph.get(),&QAction::toggled,this,&Window_Frame::ActivateNodeView);
+   connect(editorMenu->enableFileSystem.get(),&QAction::toggled,this,&Window_Frame::ActivateFileView);
+   connect(fileSystemWidget->OpenAction(),&QAction::triggered,this,&Window_Frame::OnOpenNCADFromTreeView);
+   connect(fileSystemWidget->fileMenu->renameAction.get(),&QAction::triggered,this,&Window_Frame::RenameFile);
+   connect(fileSystemWidget->folderMenu->renameAction.get(),&QAction::triggered,this,&Window_Frame::RenameFolder);
+   connect(fileSystemWidget->folderMenu->NewFolderAction.get(),&QAction::triggered,this,&Window_Frame::OnCreateFolder);
+   connect(fileSystemWidget->folderMenu->NewFileAction.get(),&QAction::triggered,this,&Window_Frame::OnCreateNewFile);
+   connect(fileSystemWidget->folderMenu->deleteAction.get(),&QAction::triggered,this,&Window_Frame::OnDeleteIndex);
+   connect(fileSystemWidget->fileMenu->deleteAction.get(),&QAction::triggered,this,&Window_Frame::OnDeleteIndex);
+   connect(fileSystemWidget->fileMenu->copyFilePathAction.get(),&QAction::triggered,this,&Window_Frame::CopyPath);
+   connect(fileSystemWidget->fileMenu->copyRelativePathAction.get(),&QAction::triggered,this,&Window_Frame::CopyRelativeFilePath);
+   connect(edgeWidget->colorPane(),&ColorPane::IsDoubleClicked,this,&Window_Frame::OnHandleEdgePrs);
+   connect(centralwidget_1->LinePrsAction,&QAction::triggered,this,&Window_Frame::OnShowEdgeWidget);
+   connect(centralwidget_1->shouldSetAction.get(),&QAction::toggled,this,&Window_Frame::OnHandleShouldSet);
+   connect(nodewidget.get(),&NodeGraphWidget::OnEmitShapeId,this,&Window_Frame::OnHandleShapeId);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitSent,this,&Window_Frame::OnHandleSent);
+   connect(nodewidget.get(),&NodeGraphWidget::emitChosenFile,this,&Window_Frame::OnHandleChosenFile);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnSentFalseValue,this,&Window_Frame::OnHandleFalseValue);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitWire,this,&Window_Frame::OnHandleSentWire);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitEdgeBool,this,&Window_Frame::OnHandleFaceBool);  
+   connect(nodewidget.get(),&NodeGraphWidget::EmitFaceParentChildIndex,this,&Window_Frame::OnHandleShadeFace);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitEdge,this,&Window_Frame::OnHandleEdgeSent);
 }
+
 

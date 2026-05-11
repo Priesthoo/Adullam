@@ -11,12 +11,19 @@ std::vector<T> m_Data;
 QString m_Name;
 QString m_Type;
 bool isReserved=false;
-VectorDataNode(const QString& name,const QString& type,const size_t& re_num=5):m_Name{name},m_Type{type}{
+VectorDataNode(const QString& name=QString(),const QString& type=QString(),const size_t& re_num=10):m_Name{name},m_Type{type}{
    m_Data.reserve(re_num);
    isReserved=true;
 }
 std::vector<T>& Data(){
     return m_Data;
+}
+T GetValue(const int& index){
+    return m_Data.at(index);
+}
+void SetData(const std::vector<T>& vec){
+    m_Data=vec;
+    return;
 }
 bool Empty() const{
     return m_Data.empty();

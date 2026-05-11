@@ -54,6 +54,16 @@
 #include<SketchLineNode.hpp>
 #include<SketchCircleNode.hpp>
 #include<SinglyFaceNode.hpp>
+#include<ExtrusionNode.hpp>
+#include<RevolveNode.hpp>
+#include<CommandShapeNode.hpp>
+#include<CommandEntryNode.hpp>
+#include<SinglyWireNode.hpp>
+#include<FiveShapeNode.hpp>
+#include<SinglyEdgeNode.hpp>
+#include<TenSizedArrayNode.hpp>
+#include<ArrayVectorNode.hpp>
+
 
 
 

@@ -5,17 +5,18 @@
 #include<AIS_ShapeNodeData.hpp>
 #include<ShapeNodeData.hpp>
 #include<NodeDescription.hpp>
-
+#include<InfoUtility.hpp>
 #include<memory>
 #include<iostream>
 using QtNodes::NodeDelegateModel;
 using namespace std;
+using namespace INFO;
 class ConvertToAIS_ShapeNode:public NodeDelegateModel,public NodeInitializer{
 private:
 std::weak_ptr<ShapeNodeData> m_inputdata;
 std::shared_ptr<AIS_ShapeNodeData> m_outdata;
 Handle(CustomAIS_Shape) outputShape;
-
+TopoDS_Shape Shape;
 public:
 ConvertToAIS_ShapeNode(){
 
@@ -58,26 +59,31 @@ NodeDataType dataType(PortType portType,PortIndex portIndex) const override{
     }
 }
 std::shared_ptr<NodeData> outData(PortIndex port) override{
-    if(m_outdata.get()){
-        m_outdata->SetData(outputShape);
-      return std::static_pointer_cast<NodeData>(m_outdata);
-}
-   m_outdata=std::make_shared<AIS_ShapeNodeData>(tr("AIS_Shape"));
-     m_outdata->SetData(outputShape);
+    if(m_outdata){
     return std::static_pointer_cast<NodeData>(m_outdata);
+    }
+    
+   std::shared_ptr<NodeData> m_ptr;
+    return m_ptr;    
+    
 }
 void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
     //Since we have only one input
     if(!data.get()){ //data.ptr;
        return;
     }
-    auto input=std::dynamic_pointer_cast<ShapeNodeData>(data);
-
-    if(portIndex==0){
-        m_inputdata=input;
-        m_outdata=std::make_shared<AIS_ShapeNodeData>(tr("AIS_Shape"));
+    m_inputdata=std::dynamic_pointer_cast<ShapeNodeData>(data);
+       if(portIndex==0){
         if(m_inputdata.lock()){
-        outputShape=new CustomAIS_Shape(m_inputdata.lock()->Data());
+          Shape=m_inputdata.lock()->Data();
+        }     
+                                                                   
+    }
+    if(m_outdata){
+          if(outputShape){
+            outputShape->SetShape(Shape);
+          }
+        m_outdata->Nullify();
         if(m_inputdata.lock()->HasMaterial()){
             outputShape->SetMaterialAspect(m_inputdata.lock()->aspect());
             outputShape->SetColor(m_inputdata.lock()->aspect().DiffuseColor());  //same as SetVisualAspect
@@ -85,9 +91,21 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
         else{
             outputShape->SetVisualAspect(m_inputdata.lock()->aspect().DiffuseColor()); //we use the diffuse 
         }
-        }     
-        emit dataUpdated(0);                                                              
+        m_outdata->SetData(outputShape);
     }
+    else{
+       m_outdata=std::make_shared<AIS_ShapeNodeData>(tr(""));
+       outputShape=new CustomAIS_Shape(Shape);
+       if(m_inputdata.lock()->HasMaterial()){
+            outputShape->SetMaterialAspect(m_inputdata.lock()->aspect());
+            outputShape->SetColor(m_inputdata.lock()->aspect().DiffuseColor());  //same as SetVisualAspect
+        }
+        else{
+            outputShape->SetVisualAspect(m_inputdata.lock()->aspect().DiffuseColor()); //we use the diffuse 
+        }
+         m_outdata->SetData(outputShape);
+    }
+    emit dataUpdated(0);
     return;
 }
 QWidget* embeddedWidget() override{ return nullptr;}

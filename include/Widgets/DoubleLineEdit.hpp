@@ -17,6 +17,7 @@ DoubleEdit(QWidget* parent,const QString& content,const size_t& decimal):QLineEd
     setValidator(validator);
     setAlignment(Qt::AlignHCenter);
    connect(static_cast<QLineEdit*>(this),&QLineEdit::textEdited,this,&DoubleEdit::OnConvertToFloat);
+   connect(static_cast<QLineEdit*>(this),&QLineEdit::textChanged,this,&DoubleEdit::OnConvertToFloat);
 }
 QLocale GetLocale() const{
     return validator->locale();
@@ -45,9 +46,8 @@ void OnTextEdited(const QString& str){
     
     return;
 }
-void SetValue(const float val){
+void SetText(const float& val){
     setText(QString::number(val));
-    emit GetValue(val);
     return;
 }
 

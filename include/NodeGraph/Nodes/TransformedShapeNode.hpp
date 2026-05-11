@@ -92,20 +92,21 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
   }
  if(outputShape){
     if(!shape.IsSame(TopoDS_Shape())){
-    BRepBuilderAPI_Transform transf(trans);
-    transf.Perform(shape);
+    gp_GTrsf gtrans(trans);
+    BRepBuilderAPI_GTransform transf(shape,gtrans);
     if(transf.IsDone()){
         outputShape->SetData(transf.Shape());
         emit dataUpdated(0);
-
+      
     }
     }
  }
  else{
     outputShape=make_shared<ShapeNodeData>();
     if(!shape.IsSame(TopoDS_Shape())){
-    BRepBuilderAPI_Transform transf(trans);
-    transf.Perform(shape);
+    gp_GTrsf gtrans(trans);
+    BRepBuilderAPI_GTransform transf(shape,gtrans);
+    
     if(transf.IsDone()){
         outputShape->SetData(transf.Shape());
         emit dataUpdated(0);

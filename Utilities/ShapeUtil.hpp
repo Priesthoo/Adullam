@@ -12,7 +12,9 @@
 #include<BRepPrimAPI_MakeCone.hxx>
 #include<BRepPrimAPI_MakeCylinder.hxx>
 #include<BRepPrimAPI_MakeTorus.hxx>
+#include<BRepPrimAPI_MakeRevol.hxx>
 #include<BRepPrimAPI_MakeSphere.hxx>
+#include<BRepPrimAPI_MakePrism.hxx>
 #include<gp_Lin.hxx>
 #include<Geom_Line.hxx>
 #include<Geom_Curve.hxx>
@@ -24,6 +26,7 @@
 #include<Geom_BezierCurve.hxx>
 #include<Geom_BSplineCurve.hxx>
 #include<Geom_OffsetCurve.hxx>
+
 #include<gp_Trsf.hxx>
 #include<gp_Pnt.hxx>
 #include<gp_Ax2.hxx>
@@ -205,6 +208,29 @@ inline TopoDS_Edge DrawCircle(const gp_Ax2& dir,const double& radius){
       return edgeMaker.Edge();
      } 
    return TopoDS_Edge(); //return an empty constructor...
+}
+inline TopoDS_Shape Extrude(const TopoDS_Shape& shape,const  gp_Vec& dir){
+   return BRepPrimAPI_MakePrism(shape,dir).Shape();
+   
+}
+inline TopoDS_Shape Revolve(const TopoDS_Shape& shape,const gp_Ax2& dir,const double& ang,QString& error){
+    BRepPrimAPI_MakeRevol revolvedShape(shape,dir.Axis(),ang);
+    if(revolvedShape.IsDone()){
+      error=QString("It is Done");
+      return revolvedShape.Shape();
+    }
+    else{
+      if(revolvedShape.HasDegenerated()){
+          error=QString("Degenrated Edge");
+      }
+      else{
+       error=QString("Failed To Revolve");
+      }
+    }
+    return TopoDS_Shape();
+}
+inline TopoDS_Shape FullRevolve(const TopoDS_Shape& shape,const gp_Ax2& dir){
+   return BRepPrimAPI_MakeRevol(shape,dir.Axis()).Shape();
 }
 }
 

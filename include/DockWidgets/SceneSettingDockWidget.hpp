@@ -10,6 +10,7 @@
 #include<DoubleLineEdit.hpp>
 #include<HighlightSection.hpp>
 #include<ShapeTypePane.hpp>
+#include<ViewCubeSection.hpp>
 //This will contain the information about the scene,
 /*
 The scene setting will contain ShowViewCube,ShowTriedhron,Set Settings,DrawWireFrame,DrawShaded,DrawShaded and WireFrame,SetColor
@@ -51,6 +52,7 @@ class SceneSettingWidget:public QWidget{
   std::unique_ptr<SelectedHighlightSection> hilisection;
   std::unique_ptr<QRadioButton> boundboxr_button; //when pressed, display the bounding box of the shape
   std::unique_ptr<ShapeTypePane> shapetypepane;
+  std::unique_ptr<ViewSettingSection> viewsection;
   public:
   SceneSettingWidget():QWidget(){
     ScLayout=new QVBoxLayout;
@@ -122,12 +124,14 @@ class SceneSettingWidget:public QWidget{
     //This is highlight section
     hilisection.reset(new SelectedHighlightSection(tr("Selection Aspect"),2,this,80));
     shapetypepane=std::make_unique<ShapeTypePane>(this);
+    viewsection=make_unique<ViewSettingSection>(this);
     ScLayout->addWidget(SelFilterSection);
     ScLayout->addWidget(DispModeSection);
     ScLayout->addWidget(GridSection);
     ScLayout->addWidget(PlaneSection);
     ScLayout->addWidget(hilisection.get());
     ScLayout->addWidget(shapetypepane.get());
+    ScLayout->addWidget(viewsection.get());
     setLayout(ScLayout);
 
 

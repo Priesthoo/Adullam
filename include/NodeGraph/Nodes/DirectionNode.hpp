@@ -104,7 +104,7 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
         default:
             break;
     }
-    if(x_input_data.lock().get() && y_input_data.lock().get() && z_input_data.lock().get()){
+    if(!output_data.get()){
         output_data=std::make_shared<DirectionNodeData>(x,y,z,tr(""));
         emit dataUpdated(0);
         return;

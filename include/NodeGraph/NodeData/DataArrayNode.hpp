@@ -27,8 +27,16 @@ void SetValueAt(const int& idx,const T& value){
 T GetValueAt(const int& idx) const{
      return m_Data.at(idx);   
 }
+
 std::array<T,N> Data() const{
     return m_Data;
+}
+size_t Size() const{
+    return NbElement;
+}
+void SetData(const std::array<T,N>& arr){
+    m_Data=arr;
+    return;
 }
 NodeDataType type() const{
     return {m_Type,m_Name};

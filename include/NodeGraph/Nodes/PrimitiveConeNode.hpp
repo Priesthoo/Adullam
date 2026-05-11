@@ -68,7 +68,7 @@ NodeDataType dataType(PortType portType,PortIndex portIndex) const override{
 }
 
 void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
-    if(!data.get()){ //analogous to data.ptr, such that ptr is apointer
+    if(!data.get()){ //analogous to data.ptr, such that ptr is a pointer
         return;
     }
     

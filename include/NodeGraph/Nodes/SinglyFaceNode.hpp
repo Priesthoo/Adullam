@@ -9,6 +9,8 @@ class SinglyFaceNode:public NodeDelegateModel,public NodeInitializer{
 private:
 std::shared_ptr<FaceNodeData> output_data;
 TopoDS_Face inputValue;
+int ParentIndex=-1;
+int Index=-1;
 public:
 SinglyFaceNode(){
 
@@ -17,6 +19,20 @@ void SetFace(const TopoDS_Face& face){
      inputValue=face;
      emit dataUpdated(0);
      return;
+}
+void SetParentIndex(const int& p){
+    ParentIndex=p;
+    return;
+}
+int parentIndex() const{
+    return ParentIndex;
+}
+void SetIndex(const int& p){
+    Index=p;
+    return;
+}
+int index() const{
+    return Index;
 }
 unsigned int nPorts(PortType portType) const override{
     switch(portType){

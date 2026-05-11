@@ -6,6 +6,7 @@
 #include<memory>
 #include<VectorDataNodeData.hpp>
 #include<ShapeNodeData.hpp>
+#include<iostream>
 using QtNodes::NodeDelegateModel;
 using namespace std;
 class MultipleOutputNode:public NodeDelegateModel,public NodeInitializer{
@@ -52,6 +53,7 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
     std::vector<Handle(CustomAIS_Shape)> shapes{};
     shapes.reserve(input_shape.lock()->Size()+1); //to avoid reallocation
     for(int i=0;i<input_shape.lock()->Size();i++){
+        if(!input_shape.lock()->GetValue(i).Data().IsSame(TopoDS_Shape())){
         customShape=new CustomAIS_Shape(input_shape.lock()->Data()[i].Data());
         if(input_shape.lock()->Data()[i].HasMaterial()){
             customShape->SetMaterialAspect(input_shape.lock()->Data()[i].aspect());
@@ -61,11 +63,12 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
             customShape->SetVisualAspect(input_shape.lock()->Data()[i].aspect().DiffuseColor());
 
         }
-
+  
         shapes.push_back(customShape);
     }
+    }
     emit OnSendShapes(shapes);
-    
+    std::cout<<"Shapes Emitted"<<endl;
     }
    return; 
 }

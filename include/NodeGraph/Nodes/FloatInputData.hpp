@@ -38,7 +38,8 @@ void load(const QJsonObject& object) override{
        QObject::connect(double_edit.get(),&DoubleEdit::GetValue,this,&FloatInputNode::OnReceiveValue);
 
     }
- double_edit->SetValue(InputValue); 
+    
+ double_edit->SetText(InputValue); 
  emit dataUpdated(0);
      return;
 }
@@ -98,7 +99,7 @@ std::shared_ptr<NodeData> outData(PortIndex port) override{
         output_data.reset(new FloatNodeData(InputValue,tr("")));
          return std::static_pointer_cast<NodeData>(output_data);
     }
-    output_data=std::make_shared<FloatNodeData>(InputValue,tr(""));
+    output_data->SetData(InputValue);
     return std::static_pointer_cast<NodeData>(output_data);
 }
 void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{

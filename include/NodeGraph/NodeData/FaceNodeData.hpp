@@ -20,6 +20,9 @@ class FaceNodeData:public NodeData{
      m_Data.SetFace(face);
      return;
   }
+  TopoDS_Face GetFaceData() const{
+    return m_Data.Face();
+  }
   FacePair Data() const{
     return m_Data;
   }

@@ -22,8 +22,7 @@ std::unique_ptr<QLabel> myLineWidthLabel;
 std::unique_ptr<DoubleEdit> myLineWidthEdit;
 std::unique_ptr<DoubleEdit> myTranspar_Edit;
 std::unique_ptr<QLabel> myTranspar_Label;
-std::unique_ptr<QCheckBox> editCheckBox; 
-std::unique_ptr<QCheckBox> edgeCheckBox;
+
 
 public:
 SelectedHighlightSection(const QString& pSec_Name,const size_t& psz,QWidget* pparent,const double& p_DEditValue):Section(pSec_Name,psz,pparent){
@@ -44,11 +43,7 @@ SelectedHighlightSection(const QString& pSec_Name,const size_t& psz,QWidget* ppa
     myFormLayout->addRow(myLineColorLabel.get(),myLineColor.get());
     myFormLayout->addRow(myLineWidthLabel.get(),myLineWidthEdit.get());
     myFormLayout->addRow(myTranspar_Label.get(),myTranspar_Edit.get());
-     editCheckBox=std::make_unique<QCheckBox>(tr(""),this);
-    edgeCheckBox=std::make_unique<QCheckBox>(tr(""),this);
-    myFormLayout->addRow(tr("Edit Edge Mode:"),edgeCheckBox.get());
-     myFormLayout->addRow(tr("Edit Face Mode:"),editCheckBox.get());
-
+   
     setContentLayout(*myFormLayout.get());
 }
 ColorPane* FaceColorWidget(){
@@ -63,12 +58,7 @@ DoubleEdit* Transpar_Edit(){
 QWidget* LineColorWidget(){
     return myLineColor.get();
 }
-QCheckBox* EditCheckBox(){
-    return editCheckBox.get();
-}
-QCheckBox* EdgeCheckBox(){
-    return edgeCheckBox.get();
-}
+
 
 };
 

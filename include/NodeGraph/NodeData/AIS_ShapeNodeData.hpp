@@ -19,6 +19,11 @@ void SetData(const Handle(CustomAIS_Shape)& shape){
 Handle(CustomAIS_Shape) Data() const{
     return m_Data;
 }
+void Nullify(){
+    if(m_Data){
+        m_Data.Nullify();
+    }
+}
 NodeDataType type() const override{
      return {"Displayed_Shape",m_Name};
 }

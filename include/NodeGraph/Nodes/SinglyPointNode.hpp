@@ -24,9 +24,10 @@ QJsonObject save() const override{
     return object;
 }
 void load(const QJsonObject& object) override{
-    InputValue.SetX(object["X"].toDouble(1.0));
-    InputValue.SetY(object["Y"].toDouble(1.0));
-    InputValue.SetZ(object["Z"].toDouble(1.0));
+    auto x=object["X"].toDouble(1.0);
+    auto y=object["Y"].toDouble(1.0);
+    auto z=object["Z"].toDouble(1.0);
+    SetPoint(Point{x,y,z});
     emit dataUpdated(0);
     return;
 }
@@ -37,6 +38,13 @@ void load(const QJsonObject& object) override{
      cout<<InputValue.X()<<endl;
      cout<<InputValue.Y()<<std::endl;
      cout<<InputValue.Z()<<endl;
+     if(output_data){
+        output_data->SetData(InputValue);
+     }
+     else{
+        output_data=std::make_shared<PointNodeData>(1.0,0.0,0.0,tr(""));
+        output_data->SetData(InputValue);
+     }
      emit dataUpdated(0);
      return;
    }
@@ -70,12 +78,6 @@ NodeDataType dataType(PortType portType,PortIndex portIndex) const override{
     }
 }
 std::shared_ptr<NodeData> outData(PortIndex port) override{
-    if(output_data.get()){
-        output_data->SetData(InputValue);
-        return std::static_pointer_cast<NodeData>(output_data);
-    }
-    output_data=std::make_shared<PointNodeData>(1.0,0.0,0.0,tr(""));
-    output_data->SetData(InputValue);
     return std::static_pointer_cast<NodeData>(output_data);
 }
 void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{

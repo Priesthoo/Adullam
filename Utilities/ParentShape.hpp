@@ -53,6 +53,9 @@ struct EdgePair{
   TopoDS_Shape EdgeShape() const{
     return edgeShape;
   }
+  void SetEdge(const TopoDS_Edge& edge_1){
+    edge=edge_1;
+  }
   unsigned int Index() const{
     return index;
   }

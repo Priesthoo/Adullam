@@ -16,13 +16,12 @@ private:
 std::weak_ptr<DataArrayNode<2,ShapeNodeData>> InputShape_1;
 std::weak_ptr<DataArrayNode<2,ShapeNodeData>> InputShape_2;
 std::shared_ptr<VectorDataNode<ShapeNodeData>> output_shape;
-std::array<TopoDS_Shape,2> shape1;
-std::array<TopoDS_Shape,2> shape2;
+std::vector<ShapeNodeData> outputData;
 bool AreElementsAdded=false;
 
 public:
 ArrayToVectorNode(){
-
+   outputData.reserve(10); //reallocates when elements are more than 10;
 }
 unsigned int nPorts(PortType portType) const override{
     switch(portType){
@@ -38,7 +37,7 @@ unsigned int nPorts(PortType portType) const override{
     return 0;
 }
 QString caption() const override{
-    return tr("Array To Vector(Shape)");
+    return tr("Two sized Arrays To Vector(Shape)");
 }
 QString name() const override{
     return caption();
@@ -71,43 +70,33 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
     switch(portIndex){
         case 0:{
              InputShape_1=std::dynamic_pointer_cast< DataArrayNode<2,ShapeNodeData>>(data);
-             if(InputShape_1.lock().get()){
-             shape1[0]=InputShape_1.lock()->Data()[0].Data();  //move the elements instead of copying elements
-              shape1[1]=InputShape_1.lock()->Data()[1].Data();
-             break;
+             if(InputShape_1.lock()){
+              if(!outputData.empty()){
+                outputData.clear();
+              }
+              for(int i=0;i<InputShape_1.lock()->Size();i++){
+                 if(!InputShape_1.lock()->GetValueAt(i).Data().IsSame(TopoDS_Shape()))
+                 outputData.emplace_back(tr(""),InputShape_1.lock()->GetValueAt(i).Data());
+                 }
              }
-             break;
         }
       case 1:{
           InputShape_2=std::dynamic_pointer_cast< DataArrayNode<2,ShapeNodeData>>(data);
-             if(InputShape_2.lock().get()){
-             shape2[0]=InputShape_2.lock()->Data()[0].Data();  //move the elements instead of copying elements....
-              shape2[1]=InputShape_2.lock()->Data()[1].Data();
-             break;
-             }
+          if(InputShape_2.lock()){
+             for(int i=0;i<InputShape_2.lock()->Size();i++){
+                 if(!InputShape_2.lock()->GetValueAt(i).Data().IsSame(TopoDS_Shape()))
+                 outputData.emplace_back(tr(""),InputShape_2.lock()->GetValueAt(i).Data());
+                 }
+          }
              break;
       }
     }
-    if(!output_shape.get()){
-    output_shape=std::make_shared<VectorDataNode<ShapeNodeData>>(tr(""),tr(""),shape1.size()+shape2.size()+1);
+    if(output_shape){
+       output_shape->SetData(outputData);
     }
-    if(output_shape.get()){
-       if(!AreElementsAdded){
-       for(int i=0;i<shape1.size();i++){
-            output_shape->Data().emplace_back(tr(""),shape1.at(i));
-         }
-           for(int i=0;i<shape2.size();i++){
-            output_shape->Data().emplace_back(tr(""),shape2.at(i));
-         }
-         AreElementsAdded=true;
-       }
-       else{
-        output_shape->Data()[0].SetData(shape1.at(0));
-        output_shape->Data()[1].SetData(shape1.at(1));
-        output_shape->Data()[2].SetData(shape2.at(0));
-        output_shape->Data()[3].SetData(shape2.at(1));
-        
-       }
+    else{
+      output_shape=std::make_shared<VectorDataNode<ShapeNodeData>>(tr(""));
+      output_shape->SetData(outputData);
     }
     emit dataUpdated(0);
     //try to implement an algorithm to remove duplicates......
@@ -116,21 +105,14 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
 std::shared_ptr<NodeData> outData(PortIndex port) override{
     if(output_shape.get()){
       return static_pointer_cast<NodeData>(output_shape);
-
+      
     }
-      output_shape=std::make_shared<VectorDataNode<ShapeNodeData>>(tr(""),tr(""),shape1.size()+shape2.size()+1); 
-     if(!AreElementsAdded){
-       for(int i=0;i<shape1.size();i++){
-            output_shape->Data().emplace_back(tr(""),shape1.at(i));
-         }
-           for(int i=0;i<shape2.size();i++){
-            output_shape->Data().emplace_back(tr(""),shape2.at(i));
-         }
-         AreElementsAdded=true;
-       }
-
+   std::shared_ptr<NodeData> mptr;
+   return mptr;      
+       
+ 
    
-    return static_pointer_cast<NodeData>(output_shape);
+
 }
 QWidget* embeddedWidget () override{
     return nullptr;

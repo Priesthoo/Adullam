@@ -1,0 +1,16 @@
+{
+    "connections": [
+    ],
+    "nodes": [
+        {
+            "id": 4,
+            "internal-data": {
+                "model-name": "OutputNode"
+            },
+            "position": {
+                "x": -106,
+                "y": -235
+            }
+        }
+    ]
+}

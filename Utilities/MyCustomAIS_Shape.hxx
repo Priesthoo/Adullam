@@ -39,11 +39,14 @@
 #include<TopExp_Explorer.hxx>
 #include<TopAbs_ShapeEnum.hxx>
 #include<TopTools_IndexedMapOfShape.hxx>
+#include<BRepBuilderAPI_GTransform.hxx>
 #include<TopExp.hxx>
 #include<TopoDS.hxx>
 #include<iostream>
 #include<TopoDS.hxx>
-
+#include<gp_GTrsf.hxx>
+#include<InfoUtility.hpp>
+using namespace INFO;
 enum VISUAL_ASPECT{
 VA_FACE,
 VA_EDGE,
@@ -66,6 +69,8 @@ gp_Trsf initialTrsf; //compounded transformation
 TopoDS_Shape trans_shape; //transformed shape used in construction of the selected or detected shape
 TopTools_IndexedMapOfShape faceMap;
 TopTools_IndexedMapOfShape edgeMap;
+int highlightIndex=-1; //highlightIndex for face
+int edgeHighlightIndex=-1;
 ERROR_TYPE et;
 CustomAIS_Shape(const TopoDS_Shape& theshape):AIS_ColoredShape(theshape){
   TopExp::MapShapes(Shape(),TopAbs_FACE,faceMap);
@@ -80,41 +85,8 @@ bool AcceptDisplayMode(const Standard_Integer theMode) const override{
 void Compute(const Handle(PrsMgr_PresentationManager)& thePM, const Handle(Prs3d_Presentation)& thePrs,const Standard_Integer theMode) override{
       
        if(theMode==3){
-    if (myshape.IsNull() || (myshape.ShapeType() == TopAbs_COMPOUND && myshape.NbChildren() == 0))
-        {
-          return;
-        }
-
-      if(static_cast<int>(myshape.ShapeType())> 4){
-          StdPrs_WFShape::Add(thePrs, myshape, myDrawer);
-    }
-    else{
-         StdPrs_ToolTriangulatedShape::ClearOnOwnDeflectionChange(myshape, myDrawer, Standard_True);
-      try
-      {
-        OCC_CATCH_SIGNALS
-        StdPrs_WFShape::Add(thePrs, myshape, myDrawer);
-        StdPrs_ShadedShape::Add(
-              thePrs,
-              myshape,
-              myDrawer,
-              myDrawer->ShadingAspect()->Aspect()->ToMapTexture()
-                && !myDrawer->ShadingAspect()->Aspect()->TextureMap().IsNull(),
-              myUVOrigin,
-              myUVRepeat,
-              myUVScale);
-           AIS_ColoredShape::Compute(thePM,thePrs,theMode);  
-             
-      }
-      catch (Standard_Failure const& anException)
-      {
-        Message::SendFail(
-          TCollection_AsciiString(
-            "Error: AIS_Shape::Compute() wireframe presentation builder has failed (")
-          + anException.GetMessageString() + ")");
-      }
-       
-       }
+        AIS_ColoredShape::Compute(thePM,thePrs,0);
+        AIS_ColoredShape::Compute(thePM,thePrs,1);
         
 
        }
@@ -127,7 +99,46 @@ void Compute(const Handle(PrsMgr_PresentationManager)& thePM, const Handle(Prs3d
     thePrs->ReCompute();
     return;
 }
+void HighlightFace(const TopoDS_Face& face,const Quantity_Color& color){
+  int index=FindFace(face);
+  if(index==-1){
+    LoadMessage(QString(""),QString("Could not find Face"));
+    return;
+  }
+  highlightIndex=index;
+  ShadeFace(index,color);
+}
+void UnhighlightFace(){
+  if(highlightIndex==-1){
+    LoadMessage(QString(""),QString("Highlight Index is minus"));
+    return;
+  }
+  UnShadeFace(highlightIndex);
 
+  return;
+}
+
+void HighlightEdge(const TopoDS_Edge& edge,const Quantity_Color& color){
+   int index=FindEdge(edge);
+  if(index==-1){
+    LoadMessage(QString(""),QString("Could not find Edge"));
+    return;
+  }
+  edgeHighlightIndex=index;
+  ShadeEdge(index,color);
+  
+  
+  
+  return;
+}
+void UnhighlightEdge(){
+   if(edgeHighlightIndex==-1){
+    LoadMessage(QString(""),QString("Highlight Index is minus"));
+    return;
+  }
+  UnShadeEdge(edgeHighlightIndex);
+  return;
+}
 
 
 virtual AIS_KindOfInteractive Type() const Standard_OVERRIDE
@@ -148,8 +159,22 @@ void setCustomColor(const TopoDS_Shape& shape,const Quantity_Color& color){
     SetCustomColor(shape,color);
     return;
 }
+void UnShadeEdge(const unsigned int& index){
+    if(index-1==edgeMap.Extent()){
+       UnsetCustomAspects(edgeMap(faceMap.Extent()));
+       return;
+     }
+  if(index<1){
+       return;
+     }
+     if(index>edgeMap.Extent()){
+        return;
+     }
+  UnsetCustomAspects(edgeMap(index));
+  return;
+}
 void UnShadeFace(const unsigned int& index){
-    if(index-1==faceMap.Extent()){
+  if(index-1==faceMap.Extent()){
        UnsetCustomAspects(faceMap(faceMap.Extent()));
        return;
      }
@@ -161,9 +186,7 @@ void UnShadeFace(const unsigned int& index){
      }
   UnsetCustomAspects(faceMap(index));
   return;
-}
-void UnShadeEdge(const unsigned int& index){
-  return;
+  
 }
 void ShadeFace(const unsigned int& index,const Quantity_Color& color){
      if(index-1==faceMap.Extent()){
@@ -179,6 +202,39 @@ void ShadeFace(const unsigned int& index,const Quantity_Color& color){
      SetCustomColor(faceMap(index),color);
      return;
 }
+int FindFace(const TopoDS_Face& face){
+   TopExp_Explorer exp;
+   int i=1;
+   bool isFound=false;
+   for(exp.Init(Shape(),TopAbs_FACE);exp.More();exp.Next()){
+     if(face.IsSame(TopoDS::Face(exp.Current()))){
+        isFound=true;
+        return i;
+     }
+     ++i;
+   }
+   if(isFound==false){
+    return -1;
+   }
+}
+int FindEdge(const TopoDS_Edge& edge){
+   TopExp_Explorer exp;
+   int i=1;
+   bool isFound=false;
+   for(exp.Init(Shape(),TopAbs_EDGE);exp.More();exp.Next()){
+     if(edge.IsSame(TopoDS::Edge(exp.Current()))){
+        isFound=true;
+        return i;
+     }
+     ++i;
+   }
+   if(isFound==false){
+    return -1;
+   }
+}
+
+
+
 
 void ShadeEdge(const unsigned int& index,const Quantity_Color& color){
      if(index<1){
@@ -199,16 +255,26 @@ int EdgeCount() const{
 TopoDS_Face GetFace(const int& index) const{
       return TopoDS::Face(faceMap(index));
 }
-void SetTransShape(const gp_Trsf& trans){ //for selection and detection
-  initialTrsf=trans;
-  BRepBuilderAPI_Transform trans_f(Shape(),trans);
-  if(trans_f.IsDone()){
-     trans_shape=trans_f.Shape();
-     et=ET_SUCCESS;
-     return;
-  }
-  et=ET_FAILURE;
+TopoDS_Edge GetEdge(const int& index) const{
+  return TopoDS::Edge(edgeMap(index));
+}
+void SetTransShape(const TopoDS_Shape& shape){ //for selection and detection
+  trans_shape=shape;
   return;
+}
+void SetTransformedShape(const gp_Trsf& trsf){
+  SetInitTransform(trsf);
+  gp_GTrsf gtrans(trsf);
+  BRepBuilderAPI_GTransform gst(Shape(),gtrans);
+  if(gst.IsDone()){
+    trans_shape=gst.Shape();
+  }
+  else{
+    LoadMessage(QString("Failed Transformed"),QString("Failed To Transform the object"));
+    return;
+  }
+  return;
+
 }
 TopoDS_Shape TransShape() const{
   return trans_shape;
@@ -228,7 +294,7 @@ void SetInitShape(const TopoDS_Shape& shape){
 
 }
 void SetInitTransform(const gp_Trsf& trsf){
- initialTrsf=initialTrsf*trsf;
+ initialTrsf=trsf;
  
  return;
  }

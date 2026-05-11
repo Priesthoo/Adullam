@@ -82,7 +82,14 @@
 #include<TopoDS.hxx>
 #include<gp_Vec.hxx>
 #include<FaceMenu.hpp>
+#include<TransientPolygon.hpp>
 #include<EdgeMenu.hpp>
+#include<QtWidgets/QMessageBox>
+#include<PolygonMenu.hpp>
+#include<TransientBeizerCurve.hpp>
+#include<TransientBSplineCurve.hpp>
+#include<Standard_DomainError.hxx>
+#include<GeomAPI_PointsToBSpline.hxx>
 //This file will enter 10,000 LOC
 //We have to create a dialog for viewport setting,Drawing widget is also a viewport
 //On Object Creation,deletion,editing,Transform
@@ -100,6 +107,19 @@ enum SELECTED_STATE{
   NULL_SELECT,
   EDGE_SELECT,
   FACE_SELECT
+};
+enum GP_STATE{
+ GPS_GATHER,
+ GPS_BEZIER,
+ GPS_BSPLINE,
+ GPS_POINT,
+ GPS_NULL
+};
+enum ContextMenu{
+CE_NULL, //by default,show scene menu
+CE_EDGE,
+CE_FACE,
+CE_SHAPE
 };
 class DrawingCentralWidget:public QWidget{
 private:
@@ -158,8 +178,23 @@ std::unique_ptr<QAction> ConstructShapeNodeAction;
 std::unique_ptr<QAction> ShowObjectInfo;
 std::unique_ptr<QAction> convertPointAction; //this converts the face point to nodes
 std::unique_ptr<QAction> ShowEdgeInfo;
+std::unique_ptr<QAction> GatherPointAction; //
+std::unique_ptr<QAction> GatherCurveAction;
+std::unique_ptr<QAction> GatherBSplineAction;
+std::unique_ptr<QAction> FindAction;
+std::unique_ptr<QAction> shouldSetAction=std::make_unique<QAction>(tr("Should Set"),nullptr);
+std::unique_ptr<QAction> CheckShapeIdAction=std::make_unique<QAction>(tr("Shape Id"),nullptr);
 std::unique_ptr<FaceMenu> faceMenu;
 std::unique_ptr<EdgeMenu> edgeMenu; 
+std::unique_ptr<PolygonMenu> polyMenu;
+std::unique_ptr<PointMenu> pointMenu=std::make_unique<PointMenu>();
+std::unique_ptr<QAction> convertPoint=std::make_unique<QAction>(tr("Convert To Point Node"));
+
+std::unique_ptr<TransientPolygon> transPolygon;
+std::unique_ptr<TransientBezierCurve> transCurve;
+std::unique_ptr<TransientBSplineCurve> bspCurve;
+std::unique_ptr<BezierMenu> bMenu;
+std::unique_ptr<BSplineMenu> spMenu;
 bool IsShapePrsAdded=false;   //this is to keep track of whether shape presentation menu item has been added
  TopoDS_Face selFace;
  TopoDS_Edge selEdge;
@@ -172,7 +207,7 @@ QAction* showSettingAction=nullptr;
 QAction* DrawCubeAction=nullptr;
 QAction* DeleteObjectGizmoAction=nullptr;
 std::unique_ptr<QAction> refreshAction;
-
+ContextMenu cm=CE_NULL;
 gp_Ax3 currentUCS=gp::XOY();   //This is a plane unto which drawings will be performed
 gp_Vec PreviousDirection;
 Handle(Graphic3d_AspectMarker3d) GridAspect=new Graphic3d_AspectMarker3d(Aspect_TOM_RING1,Quantity_NOC_LIGHTSTEELBLUE,2);
@@ -182,9 +217,11 @@ bool ShowDrawingPlane=true;
 bool IsSeen=false; //this is initialized when an object is found in Shapes;
 bool IsSelectedColorUsed=false;
 int CurrentSelMode=-1; //Current Selection Mode
+int PrevSelMode=-1; //previous selection mode before current selection mode...
 int CurrentShadeMode=3;
 int WindowHeight=0;  //This is for the binded window;
 int WindowWidth=0;
+int ShapeId=-1; //invalid index
 Handle(AIS_Manipulator) ObjectGizmo;    //This is the object gizmo
 
 Handle(ViewCube) viewcube=new ViewCube();
@@ -194,7 +231,7 @@ const double dpr=devicePixelRatioF();
 
 Handle(CustomAIS_Shape) ChosenShape;   //This will be a template for all chosen shapes
 Handle(CustomAIS_Shape) PreviousShape;
-
+Handle(CustomAIS_Shape) selShape;
 Handle(CustomAIS_Shape) surfaceWidgetShape;
 
 Handle(CustomAIS_Shape) prevCurrentObject;
@@ -219,6 +256,7 @@ bool isScaleGizmoEnabled=false;
 bool isTranslateGizmoEnabled=false;
 bool isRotateGizmoEnabled=false;
 
+
  
 EventManager evt_manager;
 Handle(Prs3d_Drawer) detected_drawer;
@@ -241,9 +279,10 @@ std::unordered_map<size_t,Handle(CustomAIS_Shape)> Shapes;
 Graphic3d_MaterialAspect prevChosenMat;
 size_t ChosenId=0;
 
-unsigned int faceIndex=0; //invalid index
-unsigned int edgeIndex=0;
-
+int faceIndex=-1; //invalid index
+int edgeIndex=-1;
+int ParentIndex=-1;
+TopoDS_Wire selWire;
 Quantity_Color chosenFaceColor;
 Quantity_Color chosenEdgeColor;
 Quantity_Color chosenVertexColor;
@@ -252,6 +291,11 @@ CHOOSE_MODE chmode=CM_NULL; //to select and isolate a particular subshape in the
 SELECTED_STATE st;
 SELECTED_STATE st1;//for per face selection and per edge selection
 TopoDS_Face surfaceWidgetFace;
+TopoDS_Face convertedEdgeFace;
+TopoDS_Shape SentShape=TopoDS_Shape();
+TopoDS_Shape selFaceShape=TopoDS_Shape();
+int SentShapeId=-1;
+GP_STATE gpsstate=GPS_NULL;
 public:
 DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
     std::cout<<"I am in Drawing CentralWidget"<<"\n";
@@ -265,11 +309,15 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
      UndoStack.reset(new QUndoStack);  //Allocate memory for QUndoStack
     winId();
     show();
+    convertPoint->setCheckable(true);
+
+    
     Shapes.reserve(100);   //maximum shapes in the scene to prevent rehashing
     edgeMenu=std::make_unique<EdgeMenu>();
     faceMenu=std::make_unique<FaceMenu>();
+    bMenu=std::make_unique<BezierMenu>();
+    spMenu=std::make_unique<BSplineMenu>();
 
-    DeleteAction=new QAction(tr("Delete"),nullptr);
     SelectAction=new QAction(tr("Select"),nullptr); 
    
     UndoAction=UndoStack->createUndoAction(this,tr("&Undo"));
@@ -308,6 +356,12 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
     ShowObjectInfo=make_unique<QAction>(tr("Show Object Info"),nullptr);
     convertPointAction=make_unique<QAction>(tr("Convert Intersect Point To Node"),nullptr);
     convertPointAction->setCheckable(true);
+
+    GatherPointAction=std::make_unique<QAction>(tr("Gather Point"),nullptr);
+    GatherPointAction->setCheckable(true);
+    FindAction=std::make_unique<QAction>(tr("Find In NodeGraph"));
+    DeleteAction=new QAction(tr("Delete"),nullptr);
+    
     SelectedMenu->addAction(DeleteAction);
     SelectedMenu->addAction(SelectAction);
     SelectedMenu->addAction(UndoAction);
@@ -321,21 +375,32 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
     SelectedMenu->addAction(ConstructTransformNodeAction.get());
     SelectedMenu->addAction(ConstructShapeNodeAction.get());
     SelectedMenu->addAction(ShowObjectInfo.get());
-    
+    SelectedMenu->addAction(FindAction.get());
+    SelectedMenu->addAction(CheckShapeIdAction.get());
+    shouldSetAction->setCheckable(true);
+   polyMenu=std::make_unique<PolygonMenu>();
+    pointMenu->addAction(convertPoint.get());
+
     DockMenus=new QMenu;
     showSettingAction=new QAction(tr("Show SceneSettings"),nullptr);  
     showSettingAction->setCheckable(true);
     DrawCubeAction=new QAction(tr("Draw Cube"),nullptr);
     DeleteObjectGizmoAction=new QAction(tr("Destroy Gizmo"),nullptr);
     refreshAction=std::make_unique<QAction>(tr("Refresh"),nullptr);
-   
+    GatherCurveAction=std::make_unique<QAction>(tr("Gather Bezier Points"),nullptr);
+    GatherCurveAction->setCheckable(true);
+    GatherBSplineAction=make_unique<QAction>(tr("Gather BSPline Points"),nullptr);
+    GatherBSplineAction->setCheckable(true);
     DockMenus->addAction(showSettingAction);
-    DockMenus->addAction(DrawCubeAction);
     DockMenus->addAction(UndoAction);
     DockMenus->addAction(RedoAction);
     DockMenus->addAction(ConstructPointNodeAction.get());
     DockMenus->addAction(convertPointAction.get());
     DockMenus->addAction(refreshAction.get());
+    DockMenus->addAction(GatherPointAction.get());
+    DockMenus->addAction(GatherCurveAction.get());
+    DockMenus->addAction(GatherBSplineAction.get());
+    DockMenus->addAction(shouldSetAction.get());
  display=new Aspect_DisplayConnection();
  driver=new OpenGl_GraphicDriver(display);
  Viewer=new V3d_Viewer(driver);
@@ -343,9 +408,10 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
  //Now to generate an id that can embed Qt project  
  context=new AIS_InteractiveContext(Viewer);
  
+ transPolygon=std::make_unique <TransientPolygon>(std::ref(context));
  
- 
-
+ transCurve=make_unique<TransientBezierCurve>(std::ref(context));
+ bspCurve=make_unique<TransientBSplineCurve>(std::ref(context));
  WId winid=winId();
 Window=new WNT_Window((Aspect_Handle)winid);
  
@@ -357,7 +423,9 @@ Window=new WNT_Window((Aspect_Handle)winid);
    CreateWorldGrid();
 view->MustBeResized();
  view->TriedronDisplay(Aspect_TOTP_RIGHT_UPPER,Quantity_NOC_SNOW,0.1,V3d_ZBUFFER);
- 
+ evt_manager.SetAllowZooming(false);
+ evt_manager.SetAllowPanning(false);
+ evt_manager.SetAllowRotation(false);
 
 
  SphereShape=BRepPrimAPI_MakeSphere(gp_Ax2(gp_Pnt(0.0,0.0,50.0),gp_Dir(0.0,0.0,1.0)),50.0).Shape();
@@ -376,7 +444,7 @@ view->MustBeResized();
  context->Display(sphereShape,CurrentShadeMode,0,true);
  context->Display(new CustomAIS_Shape(ConeShape),CurrentShadeMode,0,true);
  context->Display(new CustomAIS_Shape(CylShape),CurrentShadeMode,0,true);
-
+  
  context->Display(viewcube,true);
 
  
@@ -393,7 +461,189 @@ view->MustBeResized();
  connect(ShapePrsAction,&QAction::triggered,this,&DrawingCentralWidget::OnSendRenderShapePrs);
  connect(convertPointAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertToFacePoint);
  connect(refreshAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnRefreshView);
- connect(faceMenu->convertAction.get(),&QAction::toggled,this,DrawingCentralWidget::OnConvertToFaceNode);
+ connect(faceMenu->convertAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertToFaceNode);
+ connect(edgeMenu->convertToFaceAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertEdgeToFace);
+ connect(polyMenu->deleteAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnDeletePoints);
+ connect(polyMenu->removeLastAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnRemoveLastOne);
+ connect(polyMenu->convertToBSpline.get(),&QAction::triggered,this,&DrawingCentralWidget::OnConvertToBSpline);
+ connect(GatherPointAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnGatherPoint);
+ connect(GatherCurveAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnGatherBezier);
+ connect(bMenu->deleteAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnDeleteBezier);
+ connect(spMenu->IsPeriodicAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnHandlePeriodic);
+ connect(GatherBSplineAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnGatherBSpline);
+ connect(spMenu->deleteAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnDeleteBSplinePoint);
+ connect(FindAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnHandleSent);
+ connect(CheckShapeIdAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnKnowId);
+ connect(convertPoint.get(),&QAction::toggled,this,&DrawingCentralWidget::OnSendPointValues);
+ connect(pointMenu->DeleteAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnDestroyMarker);
+ connect(edgeMenu->convertToWireAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnSendWire);
+ connect(edgeMenu->convertAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertToEdge);
+}
+
+void OnHighlight(Handle(CustomAIS_Shape)& cshape,const TopoDS_Shape& selshape,const int& mode){
+  if(!cshape){
+     return;
+  }
+  if(selshape.IsSame(TopoDS_Shape()) && mode!=0){
+     return;
+  }
+  switch(mode){
+    case 0:{
+      
+      break;
+    }
+    case 2:{
+      cshape->HighlightEdge(TopoDS::Edge(selshape), Quantity_NOC_BURLYWOOD);
+      break;
+    }
+    case 4:{
+      cshape->HighlightFace(TopoDS::Face(selshape), Quantity_NOC_BURLYWOOD);
+      break;
+    }
+  }
+}   
+void UnHighlight(Handle(CustomAIS_Shape)& cshape,const int& mode){
+   switch(mode){
+    case 0:{
+      
+      break;
+    }
+    case 2:{
+      cshape->UnhighlightEdge();
+      break;
+    }
+    case 4:{
+      cshape->UnhighlightFace();
+      break;
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+void LoadInfo(const QString& info,const QString& title){
+  auto ret=QMessageBox::information(nullptr,title,info);
+
+  return;
+}
+void OnHandleWireError(const BRepBuilderAPI_WireError& error,int& success){
+  switch(error){
+    case BRepBuilderAPI_WireDone:{
+      LoadInfo(tr("Loop is successfully Created"),tr("Wire Info"));
+      success=1;
+      break;
+    }
+    case BRepBuilderAPI_EmptyWire:{
+      LoadInfo(tr("Empty Wire was Formed"),tr("Wire Error"));
+      success=-1;
+      break;
+    }
+    case BRepBuilderAPI_DisconnectedWire:{
+      LoadInfo(tr("The Wire is not Fully Connected"),tr("Wire Error"));
+      success=-1;
+      break;
+    }
+    case BRepBuilderAPI_NonManifoldWire:{
+      LoadInfo(tr("A Non Manifold Wire was created"),tr("Wire Error"));
+      success=-1;
+      break;
+    }
+  }
+  return;
+}
+void OnHandleFaceError(const BRepBuilderAPI_FaceError& error,int& success){
+    switch(error){
+    case BRepBuilderAPI_FaceDone:{
+      LoadInfo(tr("Face Is Successfully Constructed"),tr("Face Info"));
+      success=1;
+      break;
+    }
+    case BRepBuilderAPI_NoFace:{
+      LoadInfo(tr("No Face Is Created"),tr("Face Error"));
+      success=-1;
+      break;
+    }
+    case BRepBuilderAPI_NotPlanar:{
+      LoadInfo(tr("The Face Formed Is Not Planar"),tr("Face Error"));
+      success=-1;
+      break;
+    }
+    case BRepBuilderAPI_CurveProjectionFailed:{
+      LoadInfo(tr("Curve Projection Failed"),tr("Face Error"));
+      success=-1;
+      break;
+    }
+    case BRepBuilderAPI_ParametersOutOfRange:{
+      LoadInfo(tr("The Parameters Supplied to limit the surface are out of bounds"),tr("Face Error"));
+      success=-1;
+      break;
+    }
+    default:{
+     LoadInfo(tr("Don't Know"),tr("Face Error"));
+    }
+    }
+    return;
+}
+void FindSubShapeIndex(const Handle(CustomAIS_Shape)& cshape,const int& mode){
+  //0 for edge,
+  //1 for face
+  //2 for the shape
+
+  switch(mode){
+    case 0:{
+      edgeIndex=cshape->FindEdge(selEdge);
+      break;
+    }
+    case 1:{
+      faceIndex=cshape->FindFace(selFace);
+      break;
+    }
+    default:
+     break;
+  }
+  return;
+}
+void ConvertEdgeToWire(){
+  if(selEdge.IsNull()){
+    return;
+  }
+  int success;
+  BRepBuilderAPI_MakeWire wireBuilder(selEdge);
+  OnHandleWireError(wireBuilder.Error(),success);
+  if(success==-1){
+    LoadInfo(tr("Failed"),tr("Wire Error"));
+    return;
+  }
+  selWire=wireBuilder.Wire();
+  return;
+}
+void ConvertEdgeToFace(){
+  if(selEdge.IsNull()){
+    return;
+  }
+  int success;
+  BRepBuilderAPI_MakeWire wireBuilder(selEdge);
+  OnHandleWireError(wireBuilder.Error(),success);
+  if(success==-1){
+    LoadInfo(tr("Failed"),tr("Wire Error"));
+    return;
+  }
+  TopoDS_Wire wire=wireBuilder.Wire();
+  BRepBuilderAPI_MakeFace faceBuilder(wire);
+  OnHandleFaceError(faceBuilder.Error(),success);
+  if(!faceBuilder.IsDone()){
+    LoadInfo(tr("Failed To Build Face"),tr("Face Error"));
+    return;
+  }
+  convertedEdgeFace=faceBuilder.Face();
+  return;
 }
 Handle(ViewCube) viewCube() {
   return viewcube;
@@ -493,6 +743,7 @@ we will then loop through the shapes in the scene,After Finding it, we will high
 shape.IsSame(for every [either vertex,edge,wire loop,face,shell,solid, CompoSolid])
 
 */
+
 void HighlightSubShapes(const TopoDS_Shape& shape){
      if(context.IsNull()){
        emit QueryDebugMessage(tr("Context Cannot be Null"));
@@ -758,57 +1009,18 @@ void DisplayObject(const Handle(CustomAIS_Shape)& object){
   if(context.IsNull()){
     return;
   }
-  if(object.IsNull()){
-    if(!PreviousShape.IsNull()){
-      if(context->IsDisplayed(PreviousShape)){
-        context->Redisplay(PreviousShape,true);
-      }
-    }
-    emit QueryDebugMessage(tr("Object is not created"));
+     if(!Shapes.empty()){
+      Shapes.clear();
+       objectCount=0;
+} 
+   objectCount=0;
+   context->RemoveAll(false);
+   context->Display(viewcube,false);
+   context->Display(object,CurrentShadeMode,CurrentSelMode,false);
+   Shapes.insert(std::pair<size_t,Handle(CustomAIS_Shape)>(objectCount,object));
+   ++objectCount;
+   view->Redraw();
     return;
-  }
-  else{
-    if(!PreviousShape.IsNull()){
-      if(PreviousShape->Shape().IsSame(object->Shape())){
-          context->Redisplay(object,true);
-           return;
-      }
-      else{
-         if(context->IsDisplayed(PreviousShape)){
-          context->Remove(PreviousShape,true);
-          if(!Shapes.empty()){
-            for(auto iter=Shapes.begin();iter!=Shapes.end();++iter){
-              if(iter->second==PreviousShape){
-                Shapes.erase(iter);
-              }
-            }
-          }
-         }
-          
-         context->Display(object,CurrentShadeMode,0,true);
-         Shapes.insert(std::pair<size_t,Handle(CustomAIS_Shape)>(objectCount,object));
-
-         PreviousShape=object;
-         ++objectCount;
-         return;
-      }
-    }
-    else{
-    if(context->IsDisplayed(object)){
-      context->Redisplay(object,true);
-      return;
-    }
-    else{
-      context->Display(object,CurrentShadeMode,0,true);
-       Shapes.insert(std::pair<size_t,Handle(CustomAIS_Shape)>(objectCount,object));
-
-      PreviousShape=object; //To compare objects before display
-       ++objectCount;
-      return;
-    }
-    }
-  }
-   return;
 }
   /*
   A shape will be redislpayed or display
@@ -832,7 +1044,7 @@ void DisplayObject(const Handle(CustomAIS_Shape)& object){
         context->Redisplay(shape,true);
       }
       else{
-        context->Display(shape,CurrentShadeMode,0,true);
+        context->Display(shape,CurrentShadeMode,CurrentSelMode,true);
         Shapes.insert(std::pair<size_t,Handle(CustomAIS_Shape)>(objectCount,shape));
         ++objectCount;
       }
@@ -973,7 +1185,7 @@ void EnableManipulatorPart(const AIS_ManipulatorMode& theMode,Handle(AIS_Interac
   ObjectGizmo=new AIS_Manipulator();
   ObjectGizmo->SetPart(theMode,false);
  
- 
+  
   ObjectGizmo->Attach(shape);
   if(!context.IsNull()){
    context->Display(ObjectGizmo,AIS_Shaded,0,false);
@@ -991,6 +1203,66 @@ void OnClearView(){
     Shapes.clear();
   }
   view->Redraw();
+  return;
+}
+//this searches for an object that matches the chosen object,and store  it's ID
+void OnSearch(const Handle(CustomAIS_Shape)& shape){
+  bool isFound=false;
+  for(auto iter=Shapes.begin();iter!=Shapes.end();++iter){
+           if(iter->second==shape){
+               ShapeId=iter->first;
+               LoadMessage(tr("Shape Found Message"),tr("Shape Found"));
+               isFound=true;
+               break;
+           }
+        }
+      if(isFound==false){
+      LoadMessage(tr("Shape Not Found Error"),tr("Shape Not Found"));
+       }
+    
+    return;
+}
+void MatrixInspector(const gp_Trsf& mat){
+  std::cout<<"Matrix Form: "<<mat.Form()<<"\n";
+
+  std::cout<<"Scale Factor: "<<mat.ScaleFactor()<<"\n";
+  std::cout<<"Rotational Aspect:"<<"\n";
+  gp_Mat rotMat=mat.GetRotation().GetMatrix();
+  for(int i=1;i<=3;i++){
+    for(int j=1;j<=3;j++){
+    std::cout<<rotMat(i,j)<<" ";
+  }
+  cout<<"\n";
+  }
+  gp_XYZ transPart=mat.TranslationPart();
+  cout<<"X: "<<transPart.X()<<" "<<"Y: "<<transPart.Y()<<" "<<"Z: "<<transPart.Z()<<"\n";
+ return;
+}
+void OnHighlight(const int id){
+if(id==-1){
+  LoadMessage(tr("Negative Id"),tr("Cannot access shape using negative id"));
+   return;
+}
+if(Shapes.find(id)==Shapes.end()){
+  LoadMessage(tr("Invalid Id"),tr("Cannot Find Shape with this specific Id"));
+  return;
+}
+  if(currSelShape){
+         currSelShape->UseColor();
+         context->Redisplay(currSelShape,false);
+         context->Remove(currSelShape,false);
+        }
+      
+       currSelShape=new CustomAIS_Shape(Shapes.at(id)->TransShape());
+       if(!currSelShape){
+        LoadMessage(tr("Current Selected Shape Error"),tr("No Current Selected Object"));
+        return;
+       }
+        
+        currSelShape->SetColor(Quantity_NOC_YELLOW2);
+        currSelShape->SetTransparency(0.6);
+        currSelShape->SetZLayer(Graphic3d_ZLayerId_Top);
+        context->Display(currSelShape,1,CurrentSelMode,true);
   return;
 }
 ~DrawingCentralWidget(){
@@ -1050,7 +1322,10 @@ void OnClearView(){
 }  
 
 
-
+void FlushViewEvent(){ //flush all the view events
+  evt_manager.FlushViewEvents(context,view,true);
+  return;
+}
 
 
 
@@ -1058,6 +1333,10 @@ void OnClearView(){
 protected:
 //On Selecting Objects,we must have knowledge of the selection mode that was chosen
 void mousePressEvent(QMouseEvent* event) override{
+ if(evt_manager.UpdateMouseButtons(Graphic3d_Vec2i(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr))),ToQtMouseButton(event->button()),ToNativeModifiers(Qt::NoModifier),false)){
+   
+
+ 
  if(event->button()==Qt::LeftButton){
     
     if(context->MoveTo(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),view,false)==AIS_SOD_Nothing){
@@ -1069,11 +1348,38 @@ void mousePressEvent(QMouseEvent* event) override{
         using surfaceWidgetShape
         
         */
+       
+      if(gpsstate==GPS_BSPLINE){
+        LoadMessage(tr("B Spline Status"),tr("Spline In Progress"));
+         double projX,projY,projZ=0.0;
+         view->ConvertToGrid(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),projX,projY,projZ);
+         bspCurve->AddBSplinePoles(gp_Pnt(projX,projY,projZ));
+         FlushViewEvent();
+         return;
+      }
+      if(gpsstate==GPS_BEZIER){
+         double projX,projY,projZ=0.0;
+         view->ConvertToGrid(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),projX,projY,projZ);
+         transCurve->AddBezierPoles(gp_Pnt(projX,projY,projZ));
+         transCurve->BuildShape();
+         FlushViewEvent();
+         return;
+      }
+      if(gpsstate==GPS_GATHER){
+        double projX,projY,projZ=0.0;
+         view->ConvertToGrid(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),projX,projY,projZ);
+
+        transPolygon->AddPoint(gp_Pnt(projX,projY,projZ));
+        transPolygon->BuildShape();
+        FlushViewEvent();
+        return;
+      }
       
       if(!ChosenShape.IsNull()){
          
           IsSelectedColorUsed=false;
           SentTransform=gp_Trsf();
+          
           ChosenShape.Nullify();
       }
        if(!ObjectGizmo.IsNull()){
@@ -1084,8 +1390,10 @@ void mousePressEvent(QMouseEvent* event) override{
      emit OnDestroyMaterialProp();
      emit QueryDebugMessage(tr("No Object Is Chosen"));
      emit OnSetPreviousColor();
-     return;
-    }
+        
+       }
+     UnHighlight(selShape,PrevSelMode);
+     PrevSelMode=-1;
    if(context->IsDisplayed(pointMarker)){
     context->Remove(pointMarker,true);
    }
@@ -1096,8 +1404,9 @@ void mousePressEvent(QMouseEvent* event) override{
   
    st=NULL_SELECT;
    st1=NULL_SELECT;
-   context->Deactivate();
-   context->Activate(0);
+   cm=CE_NULL;
+   context->Activate(viewcube,0);
+   FlushViewEvent();
       return;
     }
     else{
@@ -1106,10 +1415,22 @@ void mousePressEvent(QMouseEvent* event) override{
     
     context->InitSelected();
     while(context->MoreSelected()){
-      st=SELECT;
+     
      if(CurrentSelMode==4){  //When currentSelMode is 4
-       if(chmode==CM_FACE){
+       
+        UnHighlight(selShape,PrevSelMode);
+         if(selShape){
+         if(context->IsDisplayed(selShape)){
+          context->Redisplay(selShape,true);
+         }
+         }
         Handle(SelectMgr_EntityOwner) owner=context->SelectedOwner();
+        Handle(AIS_InteractiveObject) obShape=Handle(AIS_InteractiveObject)::DownCast(owner->Selectable());
+        if(!obShape){
+          cout<<"Failed To Cast"<<"\n";
+        } 
+        selShape=Handle(CustomAIS_Shape)::DownCast(obShape);
+        
         if(!owner){
            std::cout<<"Failed To Cast To an object of SelectMgr_EntityOwner"<<"\n";
           return;
@@ -1126,7 +1447,7 @@ void mousePressEvent(QMouseEvent* event) override{
                std::cout<<"Failed To Cast To Face"<<"\n";
                return;
             }
-           
+           selFaceShape=selectedEntity->Shape();
           std::cout<<"It is a Face"<<"\n";
         }
         else{
@@ -1137,26 +1458,25 @@ void mousePressEvent(QMouseEvent* event) override{
             return;
         }
         st1=FACE_SELECT;
-        if(currSelShape){
-         currSelShape->UseColor();
-         context->Redisplay(currSelShape,false);
-         context->Remove(currSelShape,false);
-        }
-        currSelShape=new CustomAIS_Shape(selFace);
-        currSelShape->InitHighlightColor(Quantity_NOC_YELLOW2);
-        currSelShape->SetZLayer(Graphic3d_ZLayerId_Top);
-        context->Display(currSelShape,1,CurrentSelMode,true);
+       
        gp_Pnt selectedPoint=context->MainSelector()->PickedPoint(1);
       
-      if(IsWithinSurface(selFace,selectedPoint)){
+      
         int_x=selectedPoint.X();
         int_y=selectedPoint.Y();
         int_z=selectedPoint.Z();
        std::cout<<"Surface Points: "<<int_x<<","<<int_y<<","<<int_z<<"\n";
       gp_Pnt centroid=GetSurfaceCentre(selFace);
+      if(!pointMarker){
+        pointMarker=new AIS_Point(new Geom_CartesianPoint(0.0,0.0,0.0));
+        pointMarker->SetColor(Quantity_NOC_PERU);
+        pointMarker->SetMarker(Aspect_TOM_O);
+      }
       Handle(Geom_Point) geom_pnt=new Geom_CartesianPoint(centroid.X(),centroid.Y(),centroid.Z());
       pointMarker->SetComponent(geom_pnt);
-
+      x_value=centroid.X();
+      y_value=centroid.Y();
+      z_value=centroid.Z();
       if(context->IsDisplayed(pointMarker)){
          context->Remove(pointMarker,true);
          context->Display(pointMarker,true); 
@@ -1164,25 +1484,42 @@ void mousePressEvent(QMouseEvent* event) override{
       else{
       context->Display(pointMarker,true);
       }
-
-      }
-      else{
-        std::cout<<"Does not lie within Surface"<<"\n";
-      }
+      OnHighlight(selShape,selFaceShape,CurrentSelMode);
+       if(selShape){
+         if(context->IsDisplayed(selShape)){
+          context->Redisplay(selShape,true);
+         }
+         }
+      PrevSelMode=CurrentSelMode;
+      
+    
 
 
         //Get3dPointFrom2D
       
-       }
+       
+       FlushViewEvent();
        return;
+
     }
-    if(CurrentSelMode==2){
-      if(chmode==CM_EDGE){
+    if(CurrentSelMode==2){ //for edge
+         
+         UnHighlight(selShape,PrevSelMode);
+          if(selShape){
+         if(context->IsDisplayed(selShape)){
+          context->Redisplay(selShape,true);
+         }
+         }
          Handle(SelectMgr_EntityOwner) owner=context->SelectedOwner();
         if(!owner){
            std::cout<<"Failed To Cast To an object of SelectMgr_EntityOwner"<<"\n";
           return;
         }
+         Handle(AIS_InteractiveObject) obShape=Handle(AIS_InteractiveObject)::DownCast(owner->Selectable());
+        if(!obShape){
+          cout<<"Failed To Cast"<<"\n";
+        } 
+        selShape=Handle(CustomAIS_Shape)::DownCast(obShape);
        Handle(StdSelect_BRepOwner) selectedEntity=Handle(StdSelect_BRepOwner)::DownCast(owner);
        if(!selectedEntity){
         std::cout<<"Failed To Cast To an object of StdSelect_BRepOwner"<<"\n";
@@ -1205,65 +1542,49 @@ void mousePressEvent(QMouseEvent* event) override{
 
             return;
         }
+        selFaceShape=selectedEntity->Shape();
         st1=EDGE_SELECT;
          gp_Pnt selectedPoint=context->MainSelector()->PickedPoint(1);
          int_x=selectedPoint.X();
          int_y=selectedPoint.Y();
          int_z=selectedPoint.Z();
-          if(currSelShape){
-         currSelShape->UseColor();
-         context->Redisplay(currSelShape,false);
-         context->Remove(currSelShape,true);
-        }
-          currSelShape=new CustomAIS_Shape(selEdge);
-        currSelShape->SetColor(Quantity_NOC_YELLOW2);
-        currSelShape->SetTransparency(0.6);
-        currSelShape->SetWidth(2.0);
-        currSelShape->SetZLayer(Graphic3d_ZLayerId_Top);
-        context->Display(currSelShape,1,CurrentSelMode,true);
-          std::cout<<"Edge  Points: "<<int_x<<","<<int_y<<","<<int_z<<"\n";
+          PrevSelMode=CurrentSelMode;
+        OnHighlight(selShape,selFaceShape,CurrentSelMode); 
+         if(selShape){
+         if(context->IsDisplayed(selShape)){
+          context->Redisplay(selShape,true);
+         }
+         }
+         FlushViewEvent();
          return;
-      }
+      
     }
-      if(!ChosenShape.IsNull()){
-         ChosenShape->SetMaterial(prevChosenMat);
-         IsSelectedColorUsed=false;
-          
-      }
+      
     PrintSelection(CurrentSelMode);
    Handle(SelectMgr_EntityOwner) owner=context->SelectedOwner();
-    
-   //For the manipulator On the screen
-    Handle(AIS_Manipulator) chmanip=Handle(AIS_Manipulator)::DownCast(owner->Selectable());
-    if(!chmanip.IsNull()){
-    if(chmanip==ObjectGizmo){
-     evt_manager.ProcessPressMouseButton(context,ObjectGizmo,view,Graphic3d_Vec2i(static_cast<int>(std::lround(event->pos().x()*dpr),static_cast<int>(std::lround(event->pos().y()*dpr)))),ToQtMouseButton(event->button()),ToNativeModifiers(Qt::NoModifier));
-     if(ObjectGizmo->HasActiveMode() && ObjectGizmo->IsAttached()){
-      if(evt_manager.UpdateMousePosition(Graphic3d_Vec2i(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr))),ToQtMouseButton(event->button()),ToNativeModifiers(Qt::NoModifier),false)){
-        if(!ChosenShape.IsNull()){
-          PrevTrsf=ChosenShape->LocalTransformation();
-         IsSelectedColorUsed=true;
-        }
-        emit EmitShape(ChosenShape->Shape());  //Send the shape......
-        if(!Shapes.empty()){
-        for(auto iter=Shapes.begin();iter!=Shapes.end();++iter){
-           if(iter->second->Shape().IsSame(ChosenShape->Shape())){
-               ChosenId=iter->first;
-               IsSeen=true;
-               std::cout<<"Object is Seen"<<std::endl;
-               break;
-           }
-        }
-        }
+   Handle(AIS_Manipulator) chmanip=Handle(AIS_Manipulator)::DownCast(owner->Selectable());
+   if(chmanip){
+     if(chmanip==ObjectGizmo){
+       if(ObjectGizmo->HasActiveMode()){
+        evt_manager.UpdateMousePosition(Graphic3d_Vec2i(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr))),ToQtMouseButton(event->button()),ToNativeModifiers(Qt::NoModifier),false);
+        std::cout<<"Before Transform"<<"\n";
+        try{
         ObjectGizmo->StartTransform(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),view);
-        view->Redraw();
-      }
+        }
+        catch(const Standard_DomainError& error){
+        LoadMessage(tr(""),tr("Invalid Index,Choose a part close the sphere to perform translation"));
+        return;
+        }
+        std::cout<<"After Transform"<<"\n";
+        view->Invalidate(); //force the redraw;
+        isObjectTransformed=true;
+        return;
+       }
      }
-     isObjectTransformed=true;
-     emit QueryDebugMessage(tr("Object wants to be moved"));
-      return;
-    }
-    }
+   }
+   //For the manipulator On the screen
+  
+    
   
    Handle(AIS_InteractiveObject) object=Handle(AIS_InteractiveObject)::DownCast(owner->Selectable());
      if(!object.IsNull()){
@@ -1283,31 +1604,38 @@ void mousePressEvent(QMouseEvent* event) override{
      
      //ChosenShape still points to the same object as owner->Selectable()
      ChosenShape=OShape;    //Single Selection for Object
-      if(currSelShape){
-         currSelShape->UseColor();
-         context->Redisplay(currSelShape,false);
-         context->Remove(currSelShape,false);
-        }
-     currSelShape=new CustomAIS_Shape(ChosenShape->TransShape());
-        
-        currSelShape->SetColor(Quantity_NOC_YELLOW2);
-        currSelShape->SetTransparency(0.6);
-        currSelShape->SetZLayer(Graphic3d_ZLayerId_Top);
-        context->Display(currSelShape,1,CurrentSelMode,true);
+      
+     cm=CE_SHAPE;
      IsSelectedColorUsed=true;
      view->Redraw();
      emit QueryDebugMessage(tr("Assignment Successful"));
+      FlushViewEvent();
       return;
     }
     context->NextSelected();
     }
  }
 }     
-   
+
    
    
 
 else if(event->button()==Qt::RightButton){
+   if(pointMarker){
+     pointMenu->exec(event->globalPosition().toPoint());
+   }
+  if(gpsstate==GPS_BSPLINE){
+    spMenu->exec(event->globalPosition().toPoint());
+    return;
+  }
+  if(gpsstate==GPS_BEZIER){
+    bMenu->exec(event->globalPosition().toPoint());
+    return;
+  }
+  if(gpsstate==GPS_GATHER){
+   polyMenu->exec(event->globalPosition().toPoint());
+    return;
+  }
   if(st1==FACE_SELECT){
     faceMenu->exec(event->globalPosition().toPoint());
     return;
@@ -1316,7 +1644,8 @@ else if(event->button()==Qt::RightButton){
   edgeMenu->exec(event->globalPosition().toPoint());
   return;
  }
-if(SelectedMenu!=nullptr){
+
+if(cm==CE_SHAPE){
     if(!ChosenShape.IsNull()){
       if(ConstructPointNodeAction->isChecked()){
        if(context->MoveTo(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),view,false)==AIS_SOD_Nothing){
@@ -1365,7 +1694,7 @@ if(SelectedMenu!=nullptr){
     return;
     }
 }
-if(DockMenus!=nullptr){
+if(cm==CE_NULL){
   if(ChosenShape.IsNull()){
     DockMenus->exec(event->globalPosition().toPoint());
   if(ConstructPointNodeAction->isChecked()){
@@ -1407,7 +1736,9 @@ if(DockMenus!=nullptr){
 
 
 }
+ 
 return;
+ }
 }
 
 
@@ -1416,19 +1747,13 @@ return;
 
 void mouseMoveEvent(QMouseEvent* event) override{
   if(!view.IsNull() && evt_manager.UpdateMousePosition(Graphic3d_Vec2i(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr))),ToQtMouseButton(event->button()),ToNativeModifiers(Qt::NoModifier),false)){
-      if(isObjectTransformed){
-        if(!ChosenShape.IsNull()){
-           if(context->IsDisplayed(currSelShape)){
-            context->Redisplay(currSelShape,false);
-           }
-           context->Redisplay(ChosenShape,false);
-        }
-      ObjectGizmo->Transform(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().x()*dpr)),view);
-      view->Redraw();
-      emit QueryDebugMessage(tr("I am being Updated"));
+    if(isObjectTransformed && ObjectGizmo->HasActiveMode()){
+      ObjectGizmo->Transform(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),view);
+      context->Redisplay(ObjectGizmo->Object(),true);
+      view->Invalidate(); //force the redraw of the scene...
       return;
-      } 
-  }
+    }
+  
  
 if(context->MoveTo(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),view,false)==AIS_SOD_Nothing){
 //Still Same as viewer->Grid->IsActive;
@@ -1446,65 +1771,30 @@ if(Viewer->Grid()->IsActive()){
   return;
  view->Redraw();
 }
-else{
-   if(st==SELECT){
-    return;
-   }
- Handle(SelectMgr_EntityOwner) owner=context->DetectedOwner();
- if(owner.IsNull()){
-  
-  return;
- }
- Handle(StdSelect_BRepOwner) detEntity=Handle(StdSelect_BRepOwner)::DownCast(owner);
- if(!detEntity){
-  return;
- }
- Handle(AIS_InteractiveObject) object=Handle(AIS_InteractiveObject)::DownCast(detEntity->Selectable()); //Parent of entity owner 
- if(!object){
-  std::cout<<"Failed To cast to object of AIS_InteractiveObject"<<"\n";
-  
- }
- else{
-  std::cout<<"Casted Successfully,Object has parent shape"<<"\n";
- }
- Handle(CustomAIS_Shape) objshape=Handle(CustomAIS_Shape)::DownCast(object);
- TopoDS_Shape detShape=detEntity->Shape();
- if(detShape.IsNull()){
-  return;
- }
- BRepBuilderAPI_Transform objTrans(detShape,objshape->GetTransform());
- if(objTrans.IsDone()){
-    detShape=objTrans.Shape();
- }
- else{
-    detShape=TopoDS_Shape(); 
-    //Failed to transform the entity
-    std::cout<<"Failed to transform Entity"<<"\n";
-    return;
- } 
-  
-  if(currDetShape){
-         currDetShape->UseColor();
-         context->Redisplay(currDetShape,false);
-        context->Remove(currDetShape,false);
-        }
- 
- currDetShape=new CustomAIS_Shape(detShape);
- currDetShape->SetWidth(2.0);
- currDetShape->SetTransparency(0.6);
- currDetShape->SetColor(Quantity_NOC_CYAN);
-currDetShape->SetZLayer(Graphic3d_ZLayerId_Top);
- if(context){
-  context->Display(currDetShape,1,CurrentSelMode,false);
- }
 
-view->Redraw();
+
 }
-
+}
    
-return;
-}
 
+void ComputeTransform(const TopoDS_Shape& prevShape,const TopoDS_Shape& currShape,gp_Trsf& outMat){
+   cout<<"PrevShape's Transform:"<<"\n";
+  MatrixInspector(prevShape.Location().Transformation());
+  cout<<"CurrShape's Transform:"<<"\n";
+  MatrixInspector(prevShape.Location().Transformation());
+  
+  if(currShape.Location().IsIdentity()){
+     LoadMessage(tr("Identity Transform"),tr("The Current Transform is an identity matrix"));
+     return;
+  }
+ 
+  TopLoc_Location prevLoc=currShape.Location();
+  TopLoc_Location prevInvLoc=prevLoc.Inverted();
+  TopLoc_Location currLoc=currShape.Location();
+  auto currTrans=currLoc.Multiplied(prevInvLoc);
+  outMat=currTrans.Transformation();
+  return;
+}
 void PrintSelection(const int& mode){
   switch(mode){
     case 0:{
@@ -1541,55 +1831,28 @@ void PrintSelection(const int& mode){
 
 
 void mouseReleaseEvent(QMouseEvent* event) override{
-  if(event->button()==Qt::LeftButton){
-    if(isObjectTransformed){
-     if(!ObjectGizmo.IsNull()){
-       
-       ObjectGizmo->StopTransform(true);
-        OnDebugGizmo(ObjectGizmo);
+    if(evt_manager.UpdateMouseButtons(Graphic3d_Vec2i(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr))),ToQtMouseButton(event->button()),ToNativeModifiers(Qt::NoModifier),false)){
+     if(event->button()==Qt::LeftButton){
+      if(isObjectTransformed && ObjectGizmo->HasActiveMode()){
+        ObjectGizmo->StopTransform();
+        view->Invalidate();
         SentTransform=ObjectGizmo->Object()->LocalTransformation();
+        SentTransform.SetScaleFactor(ObjectGizmo->Object()->LocalTransformation().ScaleFactor());
+        isObjectTransformed=false;
+        OnDebugGizmo(ObjectGizmo);
+        cout<<"\n";
+        MatrixInspector(ObjectGizmo->Object()->LocalTransformation());
         
-       emit QueryDebugMessage(tr("Transformation has been stopped,oops"));
-}    
-      if(!ChosenShape.IsNull()){
-         gp_Trsf trsf=ObjectGizmo->Object()->LocalTransformation();
-         auto vec=trsf.TranslationPart(); //of type gp_XYZ;
-         trsf.SetTranslationPart(gp_Vec(vec.X(),vec.Y(),vec.Z()));
-         CurrTrsf=ChosenShape->LocalTransformation();
-         ChosenShape->SetTransShape(trsf); //this stores the transformed entity for selection and highlighting 
-         
-        
-        
-         
-         if(IsSeen){
-           Shapes[ChosenId]->SetTransShape(trsf);
-           IsSeen=false;
-           emit  EmitTransformedShape(ChosenShape->Shape()); 
-         }
-        if(context->IsDisplayed(currSelShape)){
-          context->Remove(currSelShape,false);
+        Handle(CustomAIS_Shape) chosenShape=Handle(CustomAIS_Shape)::DownCast(ObjectGizmo->Object());
+        if(chosenShape){
+          chosenShape->SetTransformedShape(SentTransform);
         }
-
-         UndoStack->push(new UndoTransformCommand(context,ChosenShape,PrevTrsf,CurrTrsf));
+       return;
       }
-      
-
-      isObjectTransformed=false;
-      view->Redraw();
-      emit QueryDebugMessage(tr("Stop"));
-      return;
-    }
-    else{
-      emit QueryDebugMessage(tr("a boolean variable is not initialized"));
-    }
-  }
-
-  if(event->button()==Qt::LeftButton && isPanningView){
-    isPanningView=false;
+     }
+    
     return;
-  }
-
-   return;
+    }
 }
 
 
@@ -1668,7 +1931,13 @@ signals:
   void OnSendConvertValue(const Point& pt);
   void OnEmitBoolValue(bool value);
   void OnEmitFaceBool(bool value);
+  void OnEmitEdgeBool(bool value);
   void OnEmitFace(const TopoDS_Face& face);
+  void OnEmitEdge(const TopoDS_Edge& edge);
+  void OnEmitWire(const TopoDS_Wire& wire); //On Send Wire.
+  void OnEmitSent();
+  void OnSentFalseValue();
+  void OnEmitPointCollections(const NCollection_Array1<gp_Pnt>& pnts);
 public slots:
 //This returns the top view
 void SetDrawCircleAction(bool toggled){
@@ -1685,7 +1954,13 @@ void OnDeleteObject(bool toggled){
        }
     }
     }
-    context->Remove(ChosenShape,true);
+    context->Remove(ChosenShape,false);
+    if(context->IsDisplayed(currSelShape)){
+      context->Remove(currSelShape,false);
+    }
+    if(context->IsDisplayed(currDetShape)){
+      context->Remove(currDetShape,false);
+    }
     if(!ObjectGizmo.IsNull()){
        RemoveObjectGizmo();
        ObjectGizmo.Nullify();
@@ -1864,22 +2139,222 @@ void OnConvertToFacePoint(bool value){
   
   return;
 }
-void OnConvertToFaceNode(bool value){
+
+void OnConvertEdgeToFace(bool value){
   if(value){
-   OnEmitFace(selFace);
-
-} 
-  else{
-   OnEmitFaceBool(value);
+    ConvertEdgeToFace();
+    if(!convertedEdgeFace.IsNull()){
+      emit OnEmitFace(convertedEdgeFace);
+    }
   }
+  else{
+    emit OnEmitFaceBool(value);
+  }
+  return;
+}
 
+void OnGatherPoint(bool value){
+    if(value){
+      gpsstate=GPS_GATHER;
+      
+    }
+    return;
+}
+void OnGatherBezier(bool value){
+    if(value){
+      gpsstate=GPS_BEZIER;
+      
+    }
+    return;
+}
+void OnDeleteBezier(){
+  if(!transCurve->Polygon()->Points().empty()){
+    transCurve->Polygon()->Clear();
+    transCurve->Polygon()->OnDestroy();
+    transCurve->OnDestroy();
+    gpsstate=GPS_NULL;
+    GatherCurveAction->setChecked(false);
+  }
+}
+void OnDeletePoints(){
+   if(!transPolygon->Points().empty()){
+    transPolygon->Clear();
+    transPolygon->OnDestroy();
+    gpsstate=GPS_NULL;
+    GatherPointAction->setChecked(false);
+   }
+  
+  return;
+}
+void OnRemoveLastOne(){
+  if(!transPolygon->Points().empty()){
+     transPolygon->RemoveLastPoint();
+  }
   return;
 }
 void OnRefreshView(){
   view->Redraw(); //cause a redraw;
   return;
 }
+void OnHandlePeriodic(bool Value){
+  bspCurve->SetIsPeriodic(Value);
+  return;
+}
+void OnGatherBSpline(bool value){
+   if(value){
+     gpsstate= GPS_BSPLINE;
+   }
+   return;
+}
+void OnDeleteBSplinePoint(){
+  if(!bspCurve->Polygon()->Points().empty()){
+    bspCurve->Polygon()->Clear();
+    bspCurve->Polygon()->OnDestroy();
+    bspCurve->OnDestroy();
+    gpsstate=GPS_NULL;
+    GatherBSplineAction->setChecked(false);
+  }
+  return;
+}
+void OnHandleSent(){
+  if(!ChosenShape){
+  LoadMessage(tr("Chosen Shape Message"),tr("No Shape Selected"));
+  return;
+  }
+  for(auto iter=Shapes.begin();iter!=Shapes.end();++iter){
+    if(iter->second==ChosenShape){
+      SentShapeId=iter->first;
+      SentShape=iter->second->Shape();
+      LoadMessage(tr("Shape Found"),tr("Shape And Id Found"));
+      emit OnEmitSent();
+      break;
+    }
+  }
+  return;
+}
+void OnKnowId(){
+  bool isFound=false;
+  for(auto iter=Shapes.begin();iter!=Shapes.end();++iter){
+           if(iter->second==ChosenShape){
+               ShapeId=iter->first;
+               LoadMessage(tr("ID Found"),QString("Current Id")+QString::number(iter->first));
+               isFound=true;
+               break;
+           }
+        }
+      if(isFound==false){
+      LoadMessage(tr("ID message"),tr("ID not found"));
 
+       }
+    return;
+}
+void OnSendPointValues(const bool value){
+  if(value){
+    emit OnSendConvertValue(Point(x_value,y_value,z_value));
+  }
+  else{
+    emit OnSentFalseValue();
+  }
+}
+void OnDestroyMarker(){
+if(context->IsDisplayed(pointMarker)){
+  context->Remove(pointMarker,true);
+
+}
+   if(pointMarker){
+   pointMarker.Nullify();
+   }
+   return;
+}
+void OnSendWire(bool value){
+  if(value){
+    emit OnEmitWire(selWire);
+    return;
+  }
+}
+void OnConvertToFaceNode(bool value){
+  if(value){
+  if(selShape){
+    OnSearch(selShape);
+    FindSubShapeIndex(selShape,1);
+    ParentIndex=ShapeId;
+
+    emit OnEmitFace(selFace);
+    return;
+  }
+   emit OnEmitFace(selFace);
+
+} 
+  else{
+  emit OnEmitFaceBool(value);
+  }
+
+  return;
+}
+void OnConvertToEdge(bool value){
+  if(value){
+    if(selShape){
+        OnSearch(selShape);
+    FindSubShapeIndex(selShape,0); //search for edge index
+    ParentIndex=ShapeId;
+    emit OnEmitEdge(selEdge);
+    return;
+    }
+    emit OnEmitEdge(selEdge);
+  }
+  else{
+    emit OnEmitEdgeBool(value);
+  }
+  return;
+}
+//p for parent index and c for child index
+void OnShadeFaceWithIndex(const int& p,const int c){
+  if(p==-1 || c==-1){
+     LoadMessage(tr(""),tr("It is either the parent index or the child index is negative"));
+     return;
+  }
+  if(Shapes.find(p)==Shapes.end()){
+     LoadMessage(tr(""),tr("Object with this index does not exist"));
+     return;
+  }
+  selShape=Shapes.at(p);
+  if(!selShape){
+    LoadMessage(tr(""),tr("Failed On Assigning a copy of an object of CustomAIS_Shape"));
+    return;
+  }
+  selFaceShape=selShape->GetFace(c);
+  PrevSelMode=4;
+  selShape->ShadeFace(c, Quantity_NOC_CHARTREUSE2);
+  if(context->IsDisplayed(selShape)){
+    context->Redisplay(selShape,true);
+  }
+  return;
+}
+
+void OnConvertToBSpline(){
+  if(transPolygon){
+    GeomAPI_PointsToBSpline geomSpline(transPolygon->To_Array_One());
+    if(geomSpline.IsDone()){
+       BRepBuilderAPI_MakeEdge edge(geomSpline.Curve());
+       if(edge.IsDone()){
+        Handle(CustomAIS_Shape) shape=new CustomAIS_Shape(edge.Edge());
+        if(shape){
+           context->Display(shape,true);
+           Shapes.insert(std::pair<size_t,Handle(CustomAIS_Shape)>(objectCount,shape));
+           ++objectCount;
+           context->Remove(transPolygon->DisplayedShape(),true);
+        }
+       }
+       return;
+    }
+    else{
+    LoadMessage(tr(""),tr("Failed To Convert To BSpline"));
+    return;
+    }
+    
+  }
+  return;
+}
 };
 
 

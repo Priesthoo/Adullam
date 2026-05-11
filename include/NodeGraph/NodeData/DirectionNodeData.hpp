@@ -11,6 +11,10 @@ QString m_Name;
 
 
 public:
+DirectionNodeData(const QString& name){
+    m_Name=name;
+    return;
+}
 DirectionNodeData(const float& dir_x,const float& dir_y,const float& dir_z,const QString& name):m_Data(dir_x,dir_y,dir_z),m_Name{name}{
 
 }

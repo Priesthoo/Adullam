@@ -1,0 +1,1 @@
+#include<SinglyShape.hpp>
