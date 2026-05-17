@@ -32,6 +32,10 @@ void SetData(const gp_Pnt& point,const gp_Dir& dir){
     Axis.SetLocation(point);
     return;
 }
+void SetData(const gp_Ax2& axis){
+    Axis=axis;
+    return;
+}
 void SetOriginData(const gp_Dir& dir){
     Axis.SetDirection(dir);
     Axis.SetLocation(gp_Pnt(0.0,0.0,0.0));

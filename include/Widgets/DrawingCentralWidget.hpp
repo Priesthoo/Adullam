@@ -90,6 +90,10 @@
 #include<TransientBSplineCurve.hpp>
 #include<Standard_DomainError.hxx>
 #include<GeomAPI_PointsToBSpline.hxx>
+#include<AIS_Axis.hxx>
+#include<Geom_Axis1Placement.hxx>
+#include<EdgeUtility.hpp>
+#include<DrawLineDialog.hpp>
 //This file will enter 10,000 LOC
 //We have to create a dialog for viewport setting,Drawing widget is also a viewport
 //On Object Creation,deletion,editing,Transform
@@ -97,6 +101,7 @@ using namespace Shape_Utility;
 using namespace std;
 using namespace SURFACE;
 using namespace STM;
+using namespace EDGE;
 enum CHOOSE_MODE{
   CM_FACE,
   CM_EDGE,
@@ -107,6 +112,14 @@ enum SELECTED_STATE{
   NULL_SELECT,
   EDGE_SELECT,
   FACE_SELECT
+};
+enum DRAWCURVE{
+DC_NULL,
+DC_LINE,
+DC_CIRCLE,
+DC_SPLINE,
+DC_BEZIER,
+DC_ARC
 };
 enum GP_STATE{
  GPS_GATHER,
@@ -119,7 +132,9 @@ enum ContextMenu{
 CE_NULL, //by default,show scene menu
 CE_EDGE,
 CE_FACE,
-CE_SHAPE
+CE_SHAPE,
+CE_POINT,
+CE_AXIS
 };
 class DrawingCentralWidget:public QWidget{
 private:
@@ -172,6 +187,7 @@ QAction* RotateAction=nullptr;
 QAction* TranslateAction=nullptr;
 std::unique_ptr<QAction> ShapeTypeAction;
 QAction* ShapePrsAction=nullptr;
+std::unique_ptr<DrawLineDialog> drawLineDialog;
 std::unique_ptr<QAction> ConstructPointNodeAction;
 std::unique_ptr<QAction> ConstructTransformNodeAction;
 std::unique_ptr<QAction> ConstructShapeNodeAction;
@@ -184,17 +200,26 @@ std::unique_ptr<QAction> GatherBSplineAction;
 std::unique_ptr<QAction> FindAction;
 std::unique_ptr<QAction> shouldSetAction=std::make_unique<QAction>(tr("Should Set"),nullptr);
 std::unique_ptr<QAction> CheckShapeIdAction=std::make_unique<QAction>(tr("Shape Id"),nullptr);
+std::unique_ptr<QAction> deleteAxisObject=std::make_unique<QAction>(tr("Delete"));
+std::unique_ptr<QAction> faceNormalAction=std::make_unique<QAction>(tr("Assume Face Centre Normal"));
+std::unique_ptr<QAction> convertFacePointAction=std::make_unique<QAction>(tr("Convert To Point Node"));
+std::unique_ptr<QAction> drawAction=std::make_unique<QAction>(tr("Draw Line"));
+
 std::unique_ptr<FaceMenu> faceMenu;
 std::unique_ptr<EdgeMenu> edgeMenu; 
 std::unique_ptr<PolygonMenu> polyMenu;
+std::unique_ptr<DrawLineMenu> drawLineMenu=std::make_unique<DrawLineMenu>();
 std::unique_ptr<PointMenu> pointMenu=std::make_unique<PointMenu>();
 std::unique_ptr<QAction> convertPoint=std::make_unique<QAction>(tr("Convert To Point Node"));
-
+std::unique_ptr<QAction> copyScaleAction=std::make_unique<QAction>(tr("Copy Scale"),nullptr);
+std::unique_ptr<QAction> copyRotationAction=std::make_unique<QAction>(tr("Copy Rotation"),nullptr);
+std::unique_ptr<QAction> copyTranslationAction=std::make_unique<QAction>(tr("Copy Translation"),nullptr);
 std::unique_ptr<TransientPolygon> transPolygon;
 std::unique_ptr<TransientBezierCurve> transCurve;
 std::unique_ptr<TransientBSplineCurve> bspCurve;
 std::unique_ptr<BezierMenu> bMenu;
 std::unique_ptr<BSplineMenu> spMenu;
+std::unique_ptr<AxisMenu> axisMenu;
 bool IsShapePrsAdded=false;   //this is to keep track of whether shape presentation menu item has been added
  TopoDS_Face selFace;
  TopoDS_Edge selEdge;
@@ -208,8 +233,7 @@ QAction* DrawCubeAction=nullptr;
 QAction* DeleteObjectGizmoAction=nullptr;
 std::unique_ptr<QAction> refreshAction;
 ContextMenu cm=CE_NULL;
-gp_Ax3 currentUCS=gp::XOY();   //This is a plane unto which drawings will be performed
-gp_Vec PreviousDirection;
+DRAWCURVE dc=DC_NULL;
 Handle(Graphic3d_AspectMarker3d) GridAspect=new Graphic3d_AspectMarker3d(Aspect_TOM_RING1,Quantity_NOC_LIGHTSTEELBLUE,2);
 bool ShowGrid=true;
 bool ShowPlane=true;
@@ -236,6 +260,7 @@ Handle(CustomAIS_Shape) surfaceWidgetShape;
 
 Handle(CustomAIS_Shape) prevCurrentObject;
 Handle(CustomAIS_Shape) currentObject;   //this is used when a node is clicked,it will store the object 
+Handle(AIS_Axis) AxisObject;
 Quantity_Color currentObjectColor;
 
 
@@ -246,6 +271,8 @@ Handle(CustomAIS_Shape) currDetShape;
 Quantity_Color currentShapeColor;
 gp_Pnt2d lastpoint; 
 gp_Pnt2d panlastpoint;   //this will store the pan 
+gp_Pnt selFacePoint;
+gp_Pnt LineStartPoint;
 bool LastPointIsSet=false;
 WorkingPlane Plane;
 float GridSize_X=0.0;
@@ -263,7 +290,7 @@ Handle(Prs3d_Drawer) detected_drawer;
 
 Handle(Prs3d_Drawer) selected_drawer;
 Handle(AIS_Point) pointMarker=new AIS_Point(new Geom_CartesianPoint(0.0,0.0,0.0));
-
+gp_Dir chosenDir;
 double x_value=0.0;
 double y_value=0.0;
 double z_value=0.0;
@@ -276,6 +303,7 @@ gp_Trsf CurrTrsf;
 gp_Trsf SentTransform;  //this is the transform that is sent from drawing widget to nodegraph
 size_t objectCount=0;
 std::unordered_map<size_t,Handle(CustomAIS_Shape)> Shapes;
+std::unordered_map<size_t,Handle(AIS_InteractiveObject)> DraftShapes; //for every 2d shapes that will be rendered in the scene...
 Graphic3d_MaterialAspect prevChosenMat;
 size_t ChosenId=0;
 
@@ -294,6 +322,8 @@ TopoDS_Face surfaceWidgetFace;
 TopoDS_Face convertedEdgeFace;
 TopoDS_Shape SentShape=TopoDS_Shape();
 TopoDS_Shape selFaceShape=TopoDS_Shape();
+int mainIndex=-1;
+int subMainIndex=-1;
 int SentShapeId=-1;
 GP_STATE gpsstate=GPS_NULL;
 public:
@@ -310,14 +340,19 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
     winId();
     show();
     convertPoint->setCheckable(true);
-
+    drawLineDialog=std::make_unique<DrawLineDialog>(nullptr);
     
     Shapes.reserve(100);   //maximum shapes in the scene to prevent rehashing
     edgeMenu=std::make_unique<EdgeMenu>();
     faceMenu=std::make_unique<FaceMenu>();
+    faceMenu->addAction(faceNormalAction.get());
+    convertFacePointAction->setCheckable(true);
+    faceMenu->addAction(convertFacePointAction.get());
     bMenu=std::make_unique<BezierMenu>();
     spMenu=std::make_unique<BSplineMenu>();
-
+    axisMenu=std::make_unique<AxisMenu>();
+    axisMenu->addAction(deleteAxisObject.get());
+    AxisObject=new AIS_Axis(new Geom_Axis1Placement(gp_Pnt(0.0,0.0,0.0),gp_Dir(0.0,1.0,0.0)));
     SelectAction=new QAction(tr("Select"),nullptr); 
    
     UndoAction=UndoStack->createUndoAction(this,tr("&Undo"));
@@ -356,7 +391,9 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
     ShowObjectInfo=make_unique<QAction>(tr("Show Object Info"),nullptr);
     convertPointAction=make_unique<QAction>(tr("Convert Intersect Point To Node"),nullptr);
     convertPointAction->setCheckable(true);
-
+    copyScaleAction->setCheckable(true);
+    copyTranslationAction->setCheckable(true);
+    copyRotationAction->setCheckable(true);
     GatherPointAction=std::make_unique<QAction>(tr("Gather Point"),nullptr);
     GatherPointAction->setCheckable(true);
     FindAction=std::make_unique<QAction>(tr("Find In NodeGraph"));
@@ -376,12 +413,16 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
     SelectedMenu->addAction(ConstructShapeNodeAction.get());
     SelectedMenu->addAction(ShowObjectInfo.get());
     SelectedMenu->addAction(FindAction.get());
+    SelectedMenu->addAction(copyScaleAction.get());
+    SelectedMenu->addAction(copyRotationAction.get());
+    SelectedMenu->addAction(copyTranslationAction.get());
     SelectedMenu->addAction(CheckShapeIdAction.get());
     shouldSetAction->setCheckable(true);
    polyMenu=std::make_unique<PolygonMenu>();
     pointMenu->addAction(convertPoint.get());
 
     DockMenus=new QMenu;
+    drawAction->setCheckable(true);
     showSettingAction=new QAction(tr("Show SceneSettings"),nullptr);  
     showSettingAction->setCheckable(true);
     DrawCubeAction=new QAction(tr("Draw Cube"),nullptr);
@@ -397,10 +438,12 @@ DrawingCentralWidget(QWidget* parent_widget):QWidget(parent_widget){
     DockMenus->addAction(ConstructPointNodeAction.get());
     DockMenus->addAction(convertPointAction.get());
     DockMenus->addAction(refreshAction.get());
+    DockMenus->addAction(drawAction.get());
     DockMenus->addAction(GatherPointAction.get());
     DockMenus->addAction(GatherCurveAction.get());
     DockMenus->addAction(GatherBSplineAction.get());
     DockMenus->addAction(shouldSetAction.get());
+    
  display=new Aspect_DisplayConnection();
  driver=new OpenGl_GraphicDriver(display);
  Viewer=new V3d_Viewer(driver);
@@ -462,6 +505,7 @@ view->MustBeResized();
  connect(convertPointAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertToFacePoint);
  connect(refreshAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnRefreshView);
  connect(faceMenu->convertAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertToFaceNode);
+ connect(faceMenu->searchAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnHandleFaceSent);
  connect(edgeMenu->convertToFaceAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertEdgeToFace);
  connect(polyMenu->deleteAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnDeletePoints);
  connect(polyMenu->removeLastAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnRemoveLastOne);
@@ -478,6 +522,20 @@ view->MustBeResized();
  connect(pointMenu->DeleteAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnDestroyMarker);
  connect(edgeMenu->convertToWireAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnSendWire);
  connect(edgeMenu->convertAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnConvertToEdge);
+ connect(copyTranslationAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnHandleSentTranslateTransform);
+ connect(copyRotationAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnHandleSentRotateTransform);
+ connect(copyScaleAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnHandleSentScaleTransform);
+ connect(faceMenu->assumeFaceNormal.get(),&QAction::triggered,this,&DrawingCentralWidget::OnAssumeFaceNormal);
+ connect(axisMenu->convertToAxisNode.get(),&QAction::toggled,this,&DrawingCentralWidget::OnHandleOriginAxis);
+ connect(axisMenu->convertToPositionedAxis.get(),&QAction::toggled,this,&DrawingCentralWidget::OnHandlePositionedAxis);
+ connect(deleteAxisObject.get(),&QAction::triggered,this,&DrawingCentralWidget::OnRemoveAxisObject);
+ connect(faceNormalAction.get(),&QAction::triggered,this,&DrawingCentralWidget::AssumeFaceCenterNormal);
+ connect(convertFacePointAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnGetFacePoint);
+ connect(edgeMenu->showInfoAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnGetEdgeInfo);
+ connect(drawAction.get(),&QAction::toggled,this,&DrawingCentralWidget::OnHandleDrawLine);
+ connect(drawLineMenu->drawLineAction.get(),&QAction::triggered,this,&DrawingCentralWidget::InitializeDrawDialog);
+ connect(drawLineMenu->stopLineAction.get(),&QAction::triggered,this,&DrawingCentralWidget::OnStopDrawingLine);
+ connect(drawLineDialog.get(),&DrawLineDialog::OnEmitDone,this,&DrawingCentralWidget::OnHandleDone);
 }
 
 void OnHighlight(Handle(CustomAIS_Shape)& cshape,const TopoDS_Shape& selshape,const int& mode){
@@ -603,6 +661,7 @@ void FindSubShapeIndex(const Handle(CustomAIS_Shape)& cshape,const int& mode){
     }
     case 1:{
       faceIndex=cshape->FindFace(selFace);
+      subMainIndex=faceIndex;
       break;
     }
     default:
@@ -1032,24 +1091,25 @@ void DisplayObject(const Handle(CustomAIS_Shape)& object){
     return;
   }
   if(!Shapes.empty()){
+    for(auto iter=Shapes.begin();iter!=Shapes.end();++iter){
+      context->Remove(iter->second,false);
+    }
     Shapes.clear();
-    objectCount=0;  //reset the counter
-    context->RemoveAll(true);
-
-  }
-   context->Display(viewcube,true);
+   
+  
+}
+   
+  objectCount=0;
+   if(context->IsDisplayed(viewcube)){
+    context->Redisplay(viewcube,false);
+   }
   for(const auto& shape: shapes){
-    if(shape.get()){
-      if(context->IsDisplayed(shape)){
-        context->Redisplay(shape,true);
-      }
-      else{
-        context->Display(shape,CurrentShadeMode,CurrentSelMode,true);
+        context->Display(shape,CurrentShadeMode,CurrentSelMode,false);
         Shapes.insert(std::pair<size_t,Handle(CustomAIS_Shape)>(objectCount,shape));
         ++objectCount;
-      }
-    }
+      
   }
+  view->Redraw();
 
   return;
  }
@@ -1348,7 +1408,12 @@ void mousePressEvent(QMouseEvent* event) override{
         using surfaceWidgetShape
         
         */
-       
+       if(dc==DC_LINE){
+        double projX,projY,projZ=0.0;
+         view->ConvertToGrid(static_cast<int>(std::lround(event->pos().x()*dpr)),static_cast<int>(std::lround(event->pos().y()*dpr)),projX,projY,projZ);
+        LineStartPoint=gp_Pnt(projX,projY,projZ);
+        return;
+       }
       if(gpsstate==GPS_BSPLINE){
         LoadMessage(tr("B Spline Status"),tr("Spline In Progress"));
          double projX,projY,projZ=0.0;
@@ -1382,6 +1447,7 @@ void mousePressEvent(QMouseEvent* event) override{
           
           ChosenShape.Nullify();
       }
+      
        if(!ObjectGizmo.IsNull()){
       ObjectGizmo->Detach();
       RemoveObjectGizmo();
@@ -1393,6 +1459,9 @@ void mousePressEvent(QMouseEvent* event) override{
         
        }
      UnHighlight(selShape,PrevSelMode);
+     if(context->IsDisplayed(selShape)){
+         context->Redisplay(selShape,true);
+     }
      PrevSelMode=-1;
    if(context->IsDisplayed(pointMarker)){
     context->Remove(pointMarker,true);
@@ -1460,7 +1529,7 @@ void mousePressEvent(QMouseEvent* event) override{
         st1=FACE_SELECT;
        
        gp_Pnt selectedPoint=context->MainSelector()->PickedPoint(1);
-      
+       selFacePoint=selectedPoint;
       
         int_x=selectedPoint.X();
         int_y=selectedPoint.Y();
@@ -1562,6 +1631,20 @@ void mousePressEvent(QMouseEvent* event) override{
       
     PrintSelection(CurrentSelMode);
    Handle(SelectMgr_EntityOwner) owner=context->SelectedOwner();
+   Handle(AIS_Axis) axisObject=Handle(AIS_Axis)::DownCast(owner->Selectable());
+   if(axisObject){
+    if(axisObject==AxisObject){
+      cm=CE_AXIS;
+      return;
+    }
+   }
+   Handle(AIS_Point) pmaker=Handle(AIS_Point)::DownCast(owner->Selectable());
+   if(pmaker){
+    if(pmaker==pointMarker){
+      cm=CE_POINT;
+      return;
+    }
+   }
    Handle(AIS_Manipulator) chmanip=Handle(AIS_Manipulator)::DownCast(owner->Selectable());
    if(chmanip){
      if(chmanip==ObjectGizmo){
@@ -1621,8 +1704,17 @@ void mousePressEvent(QMouseEvent* event) override{
    
 
 else if(event->button()==Qt::RightButton){
-   if(pointMarker){
+  if(dc==DC_LINE){
+    drawLineMenu->exec(event->globalPosition().toPoint());
+    return;
+  }
+   if(cm==CE_AXIS){
+     axisMenu->exec(event->globalPosition().toPoint());
+     return;
+   }
+   if(cm==CE_POINT){
      pointMenu->exec(event->globalPosition().toPoint());
+     return;
    }
   if(gpsstate==GPS_BSPLINE){
     spMenu->exec(event->globalPosition().toPoint());
@@ -1937,7 +2029,12 @@ signals:
   void OnEmitWire(const TopoDS_Wire& wire); //On Send Wire.
   void OnEmitSent();
   void OnSentFalseValue();
+  void EmitAxis(const gp_Ax2& axis);
+  void OnSendScaleTransform(const gp_Trsf& scaletransform);
+  void OnEmitIndicies(const int a,const int b);
   void OnEmitPointCollections(const NCollection_Array1<gp_Pnt>& pnts);
+  void OnEmitEdgeInfo(const EdgeInfo& edgeinfo);
+  void OnEmitSurfaceInfo(const SurfaceInfo& surfaceinfo);
 public slots:
 //This returns the top view
 void SetDrawCircleAction(bool toggled){
@@ -2126,6 +2223,7 @@ void OnSendRenderShapePrs(){
   emit OnRenderShapePrsWidget(); 
   return;
 }
+//on convert Face Centre to point node
 void OnConvertToFacePoint(bool value){
   if(value){
     emit OnEmitBoolValue(value);
@@ -2271,6 +2369,10 @@ void OnSendWire(bool value){
     emit OnEmitWire(selWire);
     return;
   }
+  else{
+   emit OnEmitFaceBool(value);
+  }
+  return;
 }
 void OnConvertToFaceNode(bool value){
   if(value){
@@ -2308,7 +2410,7 @@ void OnConvertToEdge(bool value){
   return;
 }
 //p for parent index and c for child index
-void OnShadeFaceWithIndex(const int& p,const int c){
+void OnShadeFaceWithIndex(const int& p,const int&c){
   if(p==-1 || c==-1){
      LoadMessage(tr(""),tr("It is either the parent index or the child index is negative"));
      return;
@@ -2330,7 +2432,28 @@ void OnShadeFaceWithIndex(const int& p,const int c){
   }
   return;
 }
-
+void UnShadeFaceWithIndex(const int& p,const int& c){
+  if(p==-1 || c==-1){
+     LoadMessage(tr(""),tr("It is either the parent index or the child index is negative"));
+     return;
+  }
+  if(Shapes.find(p)==Shapes.end()){
+     LoadMessage(tr(""),tr("Object with this index does not exist"));
+     return;
+  }
+  selShape=Shapes.at(p);
+  if(!selShape){
+    LoadMessage(tr(""),tr("Failed On Assigning a copy of an object of CustomAIS_Shape"));
+    return;
+  }
+  
+  PrevSelMode=-1;
+  selShape->UnShadeFace(c);
+  if(context->IsDisplayed(selShape)){
+    context->Redisplay(selShape,true);
+  }
+  return;
+}
 void OnConvertToBSpline(){
   if(transPolygon){
     GeomAPI_PointsToBSpline geomSpline(transPolygon->To_Array_One());
@@ -2353,6 +2476,217 @@ void OnConvertToBSpline(){
     }
     
   }
+  return;
+}
+void OnHandleFaceSent(){
+  if(!selShape){
+    LoadMessage(tr(""),tr("No Parent Shape own this selected entity"));
+    return;
+  }
+  //mainIndex helps us to locate the main's shape  
+   OnSearch(selShape);
+    FindSubShapeIndex(selShape,1);
+    mainIndex=ShapeId;
+   emit  OnEmitIndicies(mainIndex,subMainIndex);
+  return;
+}
+
+void OnHandleSentScaleTransform(bool value){
+  if(value){
+    gp_Trsf scaleTrans;
+    scaleTrans.SetScale(gp_Pnt(0.0,0.0,0.0),SentTransform.ScaleFactor());
+    MatrixInspector(scaleTrans);
+    emit OnSendScaleTransform(scaleTrans);
+    
+  }
+  else{
+     emit OnEmitFaceBool(value);
+  }
+  return;
+}
+void OnHandleSentRotateTransform(bool value){
+  if(value){
+   gp_Trsf rotateTrans;
+   rotateTrans.SetRotationPart(SentTransform.GetRotation());
+   MatrixInspector(rotateTrans);
+    emit OnSendScaleTransform(rotateTrans);
+
+  }
+  else{
+    emit OnEmitFaceBool(value);
+  }
+  return;
+}
+void OnHandleSentTranslateTransform(bool value){
+  if(value){
+    gp_Trsf translate;
+    translate.SetTranslationPart(SentTransform.TranslationPart());
+     MatrixInspector(translate);
+    emit OnSendScaleTransform(translate);
+  }
+  else{
+     emit OnEmitFaceBool(value);
+  }
+  return;
+}
+//this assumes the face normal on the face
+void OnAssumeFaceNormal(){
+  if(selFace.IsNull()){
+     LoadMessage(tr(""),tr("No Selected Face"));
+     return;
+  }
+  gp_Dir chDir=SURFACE::GetFaceNormal(selFace,selFacePoint);
+  chosenDir=chDir;
+  if(!AxisObject){
+    AxisObject=new AIS_Axis(new Geom_Axis1Placement(gp_Pnt(0.0,0.0,0.0),gp_Dir(0.0,1.0,0.0)));
+  }
+  AxisObject->SetAxis1Placement(new Geom_Axis1Placement(selFacePoint,chDir));
+  if(context->IsDisplayed(AxisObject)){
+    context->Redisplay(AxisObject,true);
+  
+  }
+  else{
+    context->Display(AxisObject,true);
+  }
+  
+  return;
+}
+void OnHandlePositionedAxis(bool value){
+ if(value){
+  EmitAxis(gp_Ax2(selFacePoint,chosenDir));
+ }
+ else{
+   emit OnEmitFaceBool(value);
+ }
+ return;
+}
+void OnHandleOriginAxis(bool value){
+   if(value){
+  EmitAxis(gp_Ax2(gp_Pnt(0.0,0.0,0.0),chosenDir));
+ }
+ else{
+   emit OnEmitFaceBool(value);
+ }
+  return;
+}
+void OnRemoveAxisObject(){
+  if(AxisObject){
+        if(context->IsDisplayed(AxisObject)){
+          context->Remove(AxisObject,true);
+          view->Redraw();
+        }
+
+      }
+      return;
+}
+void AssumeFaceCenterNormal(){
+  if(selFace.IsNull()){
+    return;
+  }
+  gp_Dir chDir=SURFACE::GetFaceNormal(selFace,SURFACE::GetSurfaceCentre(selFace));
+  chosenDir=chDir;
+  selFacePoint=SURFACE::GetSurfaceCentre(selFace);
+  if(!AxisObject){
+    AxisObject=new AIS_Axis(new Geom_Axis1Placement(gp_Pnt(0.0,0.0,0.0),gp_Dir(0.0,1.0,0.0)));
+  }
+  AxisObject->SetAxis1Placement(new Geom_Axis1Placement(SURFACE::GetSurfaceCentre(selFace),chDir));
+  if(context->IsDisplayed(AxisObject)){
+    context->Redisplay(AxisObject,true);
+  
+  }
+  else{
+    context->Display(AxisObject,true);
+  }
+  return;
+}
+//selFacePoint
+void OnGetFacePoint(bool value){
+if(value){
+    emit OnEmitBoolValue(value);
+    emit OnSendConvertValue(Point(selFacePoint.X(),selFacePoint.Y(),selFacePoint.Z())); 
+    return;
+  }
+  else{
+    emit OnEmitBoolValue(value);
+    }
+  return;
+}
+void OnGetFaceInfo(){
+  if(selFace.IsNull()){
+    LoadMessage(tr(""),tr("No face is selected"));
+    return;
+  }
+  SurfaceInfo info;
+  GetSurfaceInfo(selFace,info);
+  emit OnEmitSurfaceInfo(info);
+  return;
+}
+void OnGetEdgeInfo(){
+  if(selEdge.IsNull()){
+    LoadMessage(tr(""),tr("No edge is selected"));
+    return;
+  }
+  EdgeInfo info;
+  GetEdgeInfo(selEdge,info);
+  emit OnEmitEdgeInfo(info);
+  return;
+}
+void OnHandleDrawLine(bool value){
+  if(value){
+    dc=DC_LINE;
+    LoadMessage(tr(""),tr("Click a point before clicking on start drawing menu option"));
+    drawLineMenu->stopLineAction->setChecked(false);
+  }
+  return;
+}
+void OnStopDrawingLine(bool value){
+  if(value){
+    dc=DC_NULL;
+    drawAction->setChecked(false);
+  }
+}
+void InitializeDrawDialog(){
+  if(drawLineDialog){
+    drawLineDialog->SetPointOfRotation(LineStartPoint);
+    drawLineDialog->exec();
+  }
+  return;
+}
+
+void OnHandleDone(){
+  if(!drawLineDialog){
+     LoadMessage(tr(""),tr("DrawLineDialog failed to be created"));
+     return;
+  }
+  const float pie=3.14159265;
+  gp_Ax1 axis=drawLineDialog->Axis();
+  float ang=drawLineDialog->Angle();
+  gp_Dir dir=drawLineDialog->Direction();
+  float val=drawLineDialog->Length();
+  if(ang>=0.1 && ang<=0.999999999){
+    LoadMessage(tr(""),tr("Angle is not greater or equal to 1.0"));
+    return;
+  }
+  if(val==0.000){
+    LoadMessage(tr(""),tr("No Length is set"));
+    return;
+  }
+  float convertedAngle=ang*(pie/180.0f);
+  dir.Rotate(axis,convertedAngle);
+  TopoDS_Edge edge=TopoDS_Edge();
+  Handle(Geom_Line) line=new Geom_Line(LineStartPoint,dir);
+  BRepBuilderAPI_MakeEdge edgeMaker;
+  edgeMaker.Init(line,0,val);
+  if(edgeMaker.IsDone()){
+    edge=edgeMaker.Edge();
+  }
+  else{
+    LoadMessage(tr(""),tr("Failed To Create Line"));
+    return;
+  }
+  Handle(CustomAIS_Shape) lineShape=new CustomAIS_Shape(edge);
+  context->Display(lineShape,false);
+  view->Redraw();
   return;
 }
 };

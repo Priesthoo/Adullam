@@ -9,9 +9,11 @@ class SinglyFaceNode:public NodeDelegateModel,public NodeInitializer{
 private:
 std::shared_ptr<FaceNodeData> output_data;
 TopoDS_Face inputValue;
+
 int ParentIndex=-1;
 int Index=-1;
 public:
+bool isHighlight=false;
 SinglyFaceNode(){
 
 }

@@ -23,6 +23,7 @@ class SurfaceInfoWidget:public QWidget{
   setLayout(vlayout.get());
   return;
  }
+ 
  void SetSurfaceInfo(const SurfaceInfo& info,const QString& title){
     if(surface_section){
         surface_section.reset();

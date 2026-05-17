@@ -23,7 +23,7 @@ class CommonNode:public NodeDelegateModel,public NodeInitializer{
 QString name() const override{
     return caption();
 }
-  unsigned int nPorts(PortType portType) const override{
+unsigned int nPorts(PortType portType) const override{
     switch(portType){
         case PortType::In:{
             return  2;

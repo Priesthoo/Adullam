@@ -13,11 +13,11 @@ using QtNodes::NodeDelegateModel;
 class ArrayToVectorNode:public NodeDelegateModel,public NodeInitializer{
 private:
 
-std::weak_ptr<DataArrayNode<2,ShapeNodeData>> InputShape_1;
-std::weak_ptr<DataArrayNode<2,ShapeNodeData>> InputShape_2;
+std::weak_ptr<DataArrayNode<5,ShapeNodeData>> InputShape_1;
+std::weak_ptr<DataArrayNode<5,ShapeNodeData>> InputShape_2;
 std::shared_ptr<VectorDataNode<ShapeNodeData>> output_shape;
 std::vector<ShapeNodeData> outputData;
-bool AreElementsAdded=false;
+
 
 public:
 ArrayToVectorNode(){
@@ -37,7 +37,7 @@ unsigned int nPorts(PortType portType) const override{
     return 0;
 }
 QString caption() const override{
-    return tr("Two sized Arrays To Vector(Shape)");
+    return tr("Arrays To Vector(Shape)");
 }
 QString name() const override{
     return caption();
@@ -48,9 +48,9 @@ NodeDataType dataType(PortType portType,PortIndex portIndex) const override{
         case PortType::In:{
             switch(portIndex){
                 case 0:
-                  return DataArrayNode<2,ShapeNodeData>(tr("Array"),tr("ArrayOfShape")).type();
+                  return DataArrayNode<5,ShapeNodeData>(tr("Array"),tr("ArrayOfShape")).type();
                 case 1:
-                  return DataArrayNode<2,ShapeNodeData>(tr("Array"),tr("ArrayOfShape")).type();
+                  return DataArrayNode<5,ShapeNodeData>(tr("Array"),tr("ArrayOfShape")).type();
             }
         }
         case PortType::Out:{
@@ -63,31 +63,37 @@ NodeDataType dataType(PortType portType,PortIndex portIndex) const override{
         }
     }
 }
+//Fill the index 0 collection of shapes first before filling the index 1 collection
 void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
     if(!data.get()){
       return;
     }
+    if(!outputData.empty()){
+        outputData.clear();
+    }
     switch(portIndex){
         case 0:{
-             InputShape_1=std::dynamic_pointer_cast< DataArrayNode<2,ShapeNodeData>>(data);
+             InputShape_1=std::dynamic_pointer_cast< DataArrayNode<5,ShapeNodeData>>(data);
              if(InputShape_1.lock()){
-              if(!outputData.empty()){
-                outputData.clear();
-              }
+              
               for(int i=0;i<InputShape_1.lock()->Size();i++){
                  if(!InputShape_1.lock()->GetValueAt(i).Data().IsSame(TopoDS_Shape()))
                  outputData.emplace_back(tr(""),InputShape_1.lock()->GetValueAt(i).Data());
                  }
+                 
              }
+             std::cout<<"First Array Set"<<"\n";
+             break;
         }
       case 1:{
-          InputShape_2=std::dynamic_pointer_cast< DataArrayNode<2,ShapeNodeData>>(data);
+          InputShape_2=std::dynamic_pointer_cast< DataArrayNode<5,ShapeNodeData>>(data);
           if(InputShape_2.lock()){
              for(int i=0;i<InputShape_2.lock()->Size();i++){
                  if(!InputShape_2.lock()->GetValueAt(i).Data().IsSame(TopoDS_Shape()))
                  outputData.emplace_back(tr(""),InputShape_2.lock()->GetValueAt(i).Data());
                  }
           }
+          std::cout<<"Second Array Set"<<"\n";
              break;
       }
     }

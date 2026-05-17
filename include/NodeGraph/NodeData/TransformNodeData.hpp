@@ -1,6 +1,7 @@
 #pragma once
 #include<gp_Trsf.hxx>
 #include<BRepBuilderAPI_GTransform.hxx>
+#include<BRepBuilderAPI_Transform.hxx>
 #include<gp_GTrsf.hxx>
 #include<NodeData>
 using namespace QtNodes;

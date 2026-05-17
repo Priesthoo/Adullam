@@ -6,6 +6,9 @@
 #include<TopoDS_Edge.hxx>
 #include<BRep_Tool.hxx>
 #include<QtCore/QString>
+#include<Standard_NoSuchObject.hxx>
+#include<InfoUtility.hpp>
+using namespace INFO;
 namespace EDGE{
  inline QString GetEdgeType(const TopoDS_Edge& edge){
     BRepAdaptor_Curve curve(edge);
@@ -35,14 +38,14 @@ namespace EDGE{
    }
 inline QString EdgeIsOnSurface(const TopoDS_Edge& edge){
     BRepAdaptor_Curve curve(edge);
-    if(edge.IsCurveOnSurface()){
+    if(curve.IsCurveOnSurface()){
         return QString("True");
     }
     return QString("False");
    }
  inline QString Is3dCurve(const TopoDS_Edge& edge){
       BRepAdaptor_Curve curve(edge);
-      if(curve.Is3dCurve()){
+      if(curve.Is3DCurve()){
         return QString("True");
       }
       return QString("False");
@@ -69,19 +72,25 @@ inline QString EdgeIsOnSurface(const TopoDS_Edge& edge){
     
     return QString("No Continuity");
  }
+ inline QString ConvertBoolToString(bool value){
+  if(value){
+    return QString("True");
+  }
+  return QString("False");
+ }
  struct EdgeInfo{
   QString EdgeType;
   QString Is3dCurve;
   QString IsOnSurface;
   QString Continuity;
   int Degree; //number of degrees
-  int NbPoles; //number of poles;
-  int NbKnots; //number of knots
+  int NbPoles=0; //number of poles;
+  int NbKnots=0; //number of knots
   float Umin;
   float Umax;
   float Tolerance;
   float Period;
-
+  
   bool IsClosed;
   bool IsPeriodic;
   bool IsRational;
@@ -94,17 +103,24 @@ inline QString EdgeIsOnSurface(const TopoDS_Edge& edge){
     info.Continuity=EDGE::GetContinuity(edge);
     
     BRepAdaptor_Curve curve(edge);
+    try{
+     info.Period=curve.Period();
+    info.Tolerance=curve.Tolerance();
+    info.IsClosed=curve.IsClosed();
+    info.IsPeriodic=curve.IsPeriodic();
+    info.Umin=curve.FirstParameter();
+    info.Umax=curve.LastParameter();
     info.Degree=curve.Degree();
     info.NbPoles=curve.NbPoles();
     info.NbKnots=curve.NbKnots();
-    info.Umin=curve.FirstParameter();
-    info.Umax=curve.LastParameter();
-    info.Tolerance=curve.Tolerance();
-    info.Period=curve.Period();
-
-    info.IsClosed=curve.IsClosed();
-    info.IsPeriodic=curve.IsPeriodic();
-
+    }
+    catch(const Standard_NoSuchObject& object){
+     LoadMessage(QString(""),QString("The Edge is neither a bspline or bezier curve"));
+     return;
+    }
+   
+   
+    
    return;
  
  

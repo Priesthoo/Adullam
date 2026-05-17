@@ -3,7 +3,7 @@
 #include<QtWidgets/QLabel>
 #include<QtWidgets/QFormLayout>
 #include<memory>
-#include<DoubleLineEdit.hpp>
+
 #include<SurfaceUtility.hpp>
 #include<MyCustomAIS_Shape.hxx>
 #include<QtWidgets/QCheckBox>

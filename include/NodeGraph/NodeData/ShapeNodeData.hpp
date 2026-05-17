@@ -12,7 +12,7 @@ class ShapeNodeData:public NodeData{
     QString m_Name;
     bool hasMaterial=false;  //ByDefault the object has no material
  public:
- static int shapeCounter;   //it belongs to this class and not to an object of Shape
+    //it belongs to this class and not to an object of Shape
  ShapeNodeData(const QString& name=QString(""),const TopoDS_Shape& shape=TopoDS_Shape()):m_Name(name){
      m_Data=shape;
  }

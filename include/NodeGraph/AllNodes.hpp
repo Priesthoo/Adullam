@@ -63,6 +63,13 @@
 #include<SinglyEdgeNode.hpp>
 #include<TenSizedArrayNode.hpp>
 #include<ArrayVectorNode.hpp>
+#include<ChamferNode.hpp>
+#include<FilletNode.hpp>
+#include<SweepNode.hpp>
+#include<SinglyAxisNode.hpp>
+
+
+
 
 
 

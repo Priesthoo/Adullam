@@ -31,6 +31,7 @@
 #include<QtWidgets/QApplication>
 #include<QtGui/QClipboard>
 #include<iostream>
+#include<EdgeInfoWidget.hpp>
 #include<LinePresentationWidget.hpp>
 using namespace Shape_Utility;
 using namespace SURFACE;
@@ -56,6 +57,7 @@ class Window_Frame:public QMainWindow{
     std::unique_ptr<ColorCollectionWidget> colorwidget_1=std::make_unique<ColorCollectionWidget>(nullptr);
     std::unique_ptr<EdgeWidget> edgeWidget=std::make_unique<EdgeWidget>();
     std::unique_ptr<QSplitter> Splitter;
+    std::unique_ptr<EdgeInfoWidget> edgeInfoWidget=std::make_unique<EdgeInfoWidget>();
     ModelMenu* ModelActionMenu=nullptr;
     FileMenu* FileActionMenu=nullptr;
     QMenu* ModifyActionMenu=nullptr;
@@ -267,6 +269,19 @@ void OnChooseShapeFilter(bool check){
       centralwidget_1->context->Activate(6);  //For Shape Selection
       centralwidget_1->view->Redraw();  
      DisplayText(tr("Shape Selection Filter is Selected"));
+    return;
+    }
+  }
+  return;
+}
+void OnChooseObjectFilter(bool check){
+  if(check){
+    if(centralwidget_1.get()){  //For Shape Selection
+        centralwidget_1->context->Deactivate();
+         centralwidget_1->CurrentSelMode=0;
+      centralwidget_1->context->Activate(0);  //For Shape Selection
+      centralwidget_1->view->Redraw();  
+     
     return;
     }
   }
@@ -1138,7 +1153,7 @@ if(!nodewidget){
   if(!centralwidget_1->ChosenShape.IsNull()){
    centralwidget_1->OnSearch(centralwidget_1->ChosenShape); 
     
- emit OnSendShape(centralwidget_1->ChosenShape->TransShape());
+ emit OnSendShape(centralwidget_1->ChosenShape->Shape());
     
    
     
@@ -1179,7 +1194,7 @@ void OnHandleSentShape(const TopoDS_Shape& shape){
     nodewidget->NodeInitialShape=centralwidget_1->ChosenShape->Shape();
    }
    nodewidget->ShapeId=centralwidget_1->ShapeId;
-   LoadMessage(tr(""),QString("Current Id:")+QString::number(nodewidget->ShapeId));
+   LoadMessage(tr(""),QString("Current Id: ")+QString::number(nodewidget->ShapeId));
   nodewidget->shapedraw=SP_SHAPE;  
   }
   
@@ -1733,15 +1748,105 @@ void OnHandleSentWire(const TopoDS_Wire& wire){
   return;
 }
 void OnHandleShadeFace(const int& p,const int& c){
-  centralwidget_1->OnShadeFaceWithIndex(p,c);
+  if(nodewidget->highlightFace){
+     centralwidget_1->OnShadeFaceWithIndex(p,c);
+     //it is currently highlighted
+  } 
+  else{
+    centralwidget_1->UnShadeFaceWithIndex(p,c);
+  }
+  
   return;
 }
-void OnHandleUnhighlightFace(const int& p,const int& c){
-  return;
-}
+
 void OnHandleEdgeSent(const TopoDS_Edge& edge){
   nodewidget->nodeInputEdge=edge;
   nodewidget->shapedraw=SP_EDGE;
+  return;
+}
+void OnHandleRotation(bool value){
+  centralwidget_1->evt_manager.SetAllowRotation(value);
+  return;
+}
+void OnHandlePanning(bool value){
+  centralwidget_1->evt_manager.SetAllowPanning(value);
+  return;
+}
+void OnHandleLockZUp(bool value){
+  centralwidget_1->evt_manager.SetLockOrbitZUp(value);
+  return;
+}
+void OnHandleInvertPitch(bool value){
+  centralwidget_1->evt_manager.SetInvertPitch(value);
+  
+  return;
+}
+void OnHandleStayToRay(bool value){
+  centralwidget_1->evt_manager.SetStickToRayOnRotation(value);
+  return;
+}
+void OnHandleMouseAccel(const float& value){
+  centralwidget_1->evt_manager.SetMouseAcceleration(value);
+  return;
+}
+void OnHandleOrbitAccel(const float& value){
+  centralwidget_1->evt_manager.SetOrbitAcceleration(value);
+  return;
+}
+void OnHandleAbsWalkSpeed(const float& value){
+  centralwidget_1->evt_manager.SetWalkSpeedAbsolute(value);
+  return;
+}
+void OnHandleRelaWalkSpeed(const float& value){
+  centralwidget_1->evt_manager.SetWalkSpeedRelative(value);
+  return;
+}
+void OnHandleThrustSpeed(const float& value){
+  centralwidget_1->evt_manager.SetThrustSpeed(value);
+  return;
+}
+void OnHandleNavMode(const QString& value){
+   centralwidget_1->evt_manager.SetNavigationMode(STM::navMap.at(value));
+   return;
+   }
+void OnHandleRotateMode(const QString& value){
+  centralwidget_1->evt_manager.SetRotationMode(STM::rotationMap.at(value));
+return;
+}
+void OnHandleShowRotCentre(const bool value){
+  centralwidget_1->evt_manager.SetShowRotateCenter(value);
+  return;
+}
+void OnHandleEmittedIndex(const int& p,const int& c){
+  if(p==-1 && c==-1){
+    LoadMessage(tr(""),tr("Invalid Parent And Child Indicies"));
+    return;
+  }
+  nodewidget->OnFindSubFace(p,c);
+  return;
+}
+void OnHandleScale(const gp_Trsf& scaler){
+  nodewidget->Transform=gp_Trsf();
+  nodewidget->Transform=scaler;
+  nodewidget->shapedraw=SP_TRANSFORM;
+  return;
+}
+void OnHandleAxis(const gp_Ax2& dir){
+  nodewidget->nodeInputDir=dir;
+  nodewidget->shapedraw=SP_AXIS;
+  return;
+}
+void OnHandleEdgeInfo(const EdgeInfo& edgeinfo){
+  if(edgeInfoWidget){
+    edgeInfoWidget->SetEdgeInfo(edgeinfo);
+  }
+  if(dockwidget_1->GetScrolledWidget()){
+    dockwidget_1->RemoveWidget();
+  }
+  dockwidget_1->SetWidget(edgeInfoWidget.get());
+  return;
+}
+void OnHandleSurfaceInfo(const SurfaceInfo& surfaceinfo){
   return;
 }
 };

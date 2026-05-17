@@ -28,11 +28,16 @@
 #include<BRepExtrema_DistShapeShape.hxx>
 #include<BRepBuilderAPI_MakeVertex.hxx>
 #include<GProp_GProps.hxx>
+#include<GeomLProp_SLProps.hxx>
+#include<GeomAPI_ProjectPointOnSurf.hxx>
 #include<BRepGProp.hxx>
 #include<BRepClass_FaceClassifier.hxx>
+#include<StdFail_NotDone.hxx>
+#include<InfoUtility.hpp>
 #include<iostream>
 //this will provide information of a surface
 using namespace std;
+using namespace INFO;
 namespace SURFACE{
    inline QString GetSurfaceType(const TopoDS_Face& face){
      BRepAdaptor_Surface surface(face);
@@ -223,8 +228,8 @@ inline bool IsWithinSurface(const TopoDS_Face& face,const gp_Pnt& point3d){
 
     BRepExtrema_DistShapeShape anExtreme(face,aVertex);
 
-    if(anExtreme.IsDone() && anExtreme.Value()<=1e-7){
-        BRepClass_FaceClassifier classifier(face,point3d,1e-7);
+    if(anExtreme.IsDone() && anExtreme.Value()<=1e-12){
+        BRepClass_FaceClassifier classifier(face,point3d,1e-12);
         return (classifier.State()==TopAbs_ON || classifier.State()==TopAbs_IN);
     }   
     return false;
@@ -234,5 +239,39 @@ inline gp_Pnt GetSurfaceCentre(const TopoDS_Face& face){
    BRepGProp::SurfaceProperties(face,props); //obtain centre of mass
 
    return props.CentreOfMass();
+}
+inline gp_Dir GetFaceNormal(const TopoDS_Face& face,const gp_Pnt& point){
+   
+   Handle(Geom_Surface) surface=BRep_Tool::Surface(face);
+   if(!surface){
+      LoadMessage(QString(""),QString("Cannot get underlying surface"));
+      return gp_Dir(0.0,0.0,1.0);
+   }
+   GeomAPI_ProjectPointOnSurf proj(point,surface);
+   double U,V; //the respective UV that corresponds to the point
+   try{
+      proj.LowerDistanceParameters(U,V);
+   }
+   catch(const StdFail_NotDone& notDone){
+      LoadMessage(QString(""),QString("It failed to project point on surface"));
+      return gp_Dir(0.0,0.0,1.0);
+   }
+   GeomLProp_SLProps props(surface,U,V,1,1e-12);
+   if(props.IsNormalDefined()){
+       gp_Dir normal;
+      if(face.Orientation()==TopAbs_REVERSED){
+         normal=props.Normal();
+         normal.Reverse();
+         LoadMessage(QString(""),QString("Normal is computed"));
+         return normal;
+      }
+      else{
+         normal=props.Normal();
+         LoadMessage(QString(""),QString("Normal is computed"));
+         return normal;
+      }
+   }
+   LoadMessage(QString(""),QString("Normal is not computed"));
+   return gp_Dir(0.0,0.0,1.0);
 }
 }

@@ -14,6 +14,7 @@ class ViewSettingSection:public Section{
  unique_ptr<QCheckBox> panCheckBox;
  unique_ptr<QCheckBox> orbitCheckBox;
  unique_ptr<QCheckBox> rotateCheckBox;
+ std::unique_ptr<QCheckBox> showRotateCentreCheckBox;
  unique_ptr<QCheckBox> invertPitchCheckBox;
  unique_ptr<QCheckBox> lockZUpCheckBox;
  unique_ptr<QCheckBox> stayToRayCheckBox; //this is for stay to ray on rotation
@@ -44,12 +45,14 @@ class ViewSettingSection:public Section{
    walkAbsSpeedEdit=make_unique<DoubleEdit>(this,QString::number(1.0),8);
    walkRelaSpeedEdit=make_unique<DoubleEdit>(this,QString::number(1.0),8);
    thrustSpeedEdit=make_unique<DoubleEdit>(this,QString::number(1.0),8);
+   showRotateCentreCheckBox=std::make_unique<QCheckBox>(tr(""),nullptr); 
    formLayout->addRow(tr("Pan: "),panCheckBox.get());
    formLayout->addRow(tr("Orbit: "),orbitCheckBox.get());
    formLayout->addRow(tr("Navigation Mode:"),navComboBox.get());
    formLayout->addRow(tr("Rotation Mode: "),rotateComboBox.get());
    formLayout->addRow(tr("Rotate:"),rotateCheckBox.get());
    formLayout->addRow(tr("Invert Pitch:"),invertPitchCheckBox.get());
+   formLayout->addRow(tr("Show Rotation Center:"), showRotateCentreCheckBox.get());
    formLayout->addRow(tr("Lock Z-Up"),lockZUpCheckBox.get());
    formLayout->addRow(tr("Mouse Acceleration:"),mouseAccelEdit.get());
    formLayout->addRow(tr("Orbit Acceleration:"),orbitAccelEdit.get());

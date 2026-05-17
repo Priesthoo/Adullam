@@ -3,6 +3,7 @@
 #include<ShapeNodeData.hpp>
 #include<memory>
 #include<TransformNodeData.hpp>
+
 #include<NodeInitializer.hpp>
 using namespace std;
 class TransformedShapeNode:public NodeDelegateModel,public NodeInitializer{
@@ -92,8 +93,8 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
   }
  if(outputShape){
     if(!shape.IsSame(TopoDS_Shape())){
-    gp_GTrsf gtrans(trans);
-    BRepBuilderAPI_GTransform transf(shape,gtrans);
+    
+    BRepBuilderAPI_Transform transf(shape,trans);
     if(transf.IsDone()){
         outputShape->SetData(transf.Shape());
         emit dataUpdated(0);
@@ -104,8 +105,8 @@ void setInData(std::shared_ptr<NodeData> data,PortIndex portIndex) override{
  else{
     outputShape=make_shared<ShapeNodeData>();
     if(!shape.IsSame(TopoDS_Shape())){
-    gp_GTrsf gtrans(trans);
-    BRepBuilderAPI_GTransform transf(shape,gtrans);
+    
+    BRepBuilderAPI_Transform transf(shape,trans);
     
     if(transf.IsDone()){
         outputShape->SetData(transf.Shape());

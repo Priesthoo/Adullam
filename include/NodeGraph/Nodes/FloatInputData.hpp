@@ -121,6 +121,9 @@ signals:
 public slots:
 void OnReceiveValue(float value){
     InputValue=value;
+    if(InputValue>=0.0 && InputValue<=0.9999999999){
+        return;
+    }
     emit dataUpdated(0); //update the output value
     emit OnUpdateInput(value);
     std::cout<<"Value Updated: "<<value<<std::endl;

@@ -2,6 +2,7 @@
 #include<QPushButton>
 #include<QMessageBox>
 #include"WindowFrame.hpp"
+#include<QtGui/QIcon>
 #include<memory>
 int main(int argc, char* argv[]){
     QApplication app(argc,argv);
@@ -26,6 +27,7 @@ int main(int argc, char* argv[]){
     QFont font=app.font();
     font.setPointSizeF(font.pointSizeF()-0.2);
     app.setFont(font);
+    QApplication::setWindowIcon(QIcon(QString("../Utilities/IconNodeCAD.png")));
     std::unique_ptr<Window_Frame> WindowFrame;
     WindowFrame.reset(new Window_Frame(nullptr));   //Allocate Memory for Window_Frame
      WindowFrame->resize(500,500);

@@ -12,6 +12,11 @@ public:
 NodeInitializer(){
 
 }
+//set all variables to false
+virtual void SetToFalse(){
+    return;
+}
+// instantiate a copy
 virtual void Initialize(NodeDelegateModel* model){
     return;
 }

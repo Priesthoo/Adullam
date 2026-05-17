@@ -20,6 +20,9 @@ class EdgeNodeData:public NodeData{
     void SetEdge(const TopoDS_Edge& edge){
         m_Data.SetEdge(edge);
     }
+    TopoDS_Edge edge() const{
+        return m_Data.Edge();
+    }
     EdgePair Data() const{
         return m_Data;
     }

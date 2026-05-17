@@ -67,6 +67,7 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
      connect(nodewidget.get(),&NodeGraphWidget::OnSendAIS_ShapeToDrawingWidget,this,&Window_Frame::OnRenderAIS_Shape);
      
 
+      connect(sceneSettingWidget->ObjectRadioButton,&QRadioButton::toggled,this,&Window_Frame::OnChooseObjectFilter);
      connect(sceneSettingWidget->Wi_RadioButton,&QRadioButton::toggled,this,&Window_Frame::OnSetWireframeMode);
      connect(sceneSettingWidget->Sh_RadioButton,&QRadioButton::toggled,this,&Window_Frame::OnSetShadedMode);
      connect(sceneSettingWidget->Wi_ShRadioButton,&QRadioButton::toggled,this,&Window_Frame::OnSetBothShadedAndWireFrame);
@@ -83,6 +84,19 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
      connect(sceneSettingWidget->SpaceEdit,&DoubleEdit::GetValue,this,&Window_Frame::OnSetGridSpacing);
      connect(centralwidget_1.get(),&DrawingCentralWidget::OnOpenSceneSettings,this,&Window_Frame::OnShowSceneSettings);
      connect(sceneSettingWidget->boundboxr_button.get(),&QRadioButton::toggled,this,&Window_Frame::OnDrawBoundBox);
+     connect(sceneSettingWidget->viewsection->panCheckBox.get(),&QCheckBox::toggled,this,&Window_Frame::OnHandlePanning);
+     connect(sceneSettingWidget->viewsection->rotateCheckBox.get(),&QCheckBox::toggled,this,&Window_Frame::OnHandleRotation);
+     connect(sceneSettingWidget->viewsection->lockZUpCheckBox.get(),&QCheckBox::toggled,this,&Window_Frame::OnHandleLockZUp);
+     connect(sceneSettingWidget->viewsection->invertPitchCheckBox.get(),&QCheckBox::toggled,this,&Window_Frame::OnHandleInvertPitch);
+     connect(sceneSettingWidget->viewsection->stayToRayCheckBox.get(),&QCheckBox::toggled,this,&Window_Frame::OnHandleStayToRay);
+    connect(sceneSettingWidget->viewsection->mouseAccelEdit.get(),&DoubleEdit::GetValue,this,&Window_Frame::OnHandleMouseAccel);
+    connect(sceneSettingWidget->viewsection->orbitAccelEdit.get(),&DoubleEdit::GetValue,this,&Window_Frame::OnHandleOrbitAccel);
+    connect(sceneSettingWidget->viewsection->walkAbsSpeedEdit.get(),&DoubleEdit::GetValue,this,&Window_Frame::OnHandleAbsWalkSpeed);
+   connect(sceneSettingWidget->viewsection->walkRelaSpeedEdit.get(),&DoubleEdit::GetValue,this,&Window_Frame::OnHandleRelaWalkSpeed);
+   connect(sceneSettingWidget->viewsection->thrustSpeedEdit.get(),&DoubleEdit::GetValue,this,&Window_Frame::OnHandleThrustSpeed);
+    connect(sceneSettingWidget->viewsection->navComboBox.get(),&QComboBox::textActivated,this,&Window_Frame::OnHandleNavMode);
+    connect(sceneSettingWidget->viewsection->rotateComboBox.get(),&QComboBox::textActivated,this,&Window_Frame::OnHandleRotateMode);
+    connect(sceneSettingWidget->viewsection->showRotateCentreCheckBox.get(),&QCheckBox::toggled,this,&Window_Frame::OnHandleShowRotCentre);
      connect(centralwidget_1->DrawCubeAction,&QAction::triggered,this,&Window_Frame::OnDrawCubeHandler);
      connect(centralwidget_1.get(),&DrawingCentralWidget::OnRenderShapePrsWidget,this,&Window_Frame::OnDrawShapePrsUI);
      connect(objprswidget->propsection()->baseColorPane(),&ColorPane::IsDoubleClicked,this,&Window_Frame::OnBaseColorHandler);
@@ -173,6 +187,11 @@ Window_Frame::Window_Frame(QWidget* parent_widget):QMainWindow(parent_widget){
    connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitEdgeBool,this,&Window_Frame::OnHandleFaceBool);  
    connect(nodewidget.get(),&NodeGraphWidget::EmitFaceParentChildIndex,this,&Window_Frame::OnHandleShadeFace);
    connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitEdge,this,&Window_Frame::OnHandleEdgeSent);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitIndicies,this,&Window_Frame::OnHandleEmittedIndex);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnSendScaleTransform,this,&Window_Frame::OnHandleScale);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::EmitAxis,this,&Window_Frame::OnHandleAxis);
+   connect(centralwidget_1.get(),&DrawingCentralWidget::OnEmitEdgeInfo,this,&Window_Frame::OnHandleEdgeInfo);
+   
 }
 
 

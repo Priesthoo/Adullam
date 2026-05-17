@@ -33,6 +33,7 @@ class SceneSettingWidget:public QWidget{
   QRadioButton* WireRadioButton=nullptr;
   QRadioButton* EdgeRadioButton=nullptr;
   QRadioButton* ShapeRadioButton=nullptr;
+  QRadioButton* ObjectRadioButton=nullptr;
   QCheckBox* isAutoHilightCheckBox=nullptr;
   QCheckBox* ShowViewCubeCheckBox=nullptr;
   QCheckBox* ShowGridCheckBox=nullptr;
@@ -65,12 +66,14 @@ class SceneSettingWidget:public QWidget{
     VertexRadioButton=new QRadioButton(tr("Vertex"),SelFilterSection);
     FaceRadioButton=new QRadioButton(tr("Face"),SelFilterSection);
     EdgeRadioButton=new QRadioButton(tr("Edge"),SelFilterSection);
-    ShapeRadioButton=new QRadioButton(tr("Shape"),SelFilterSection);
+    ShapeRadioButton=new QRadioButton(tr("Solid"),SelFilterSection);
+    ObjectRadioButton=new QRadioButton(tr("Shape"),SelFilterSection);
     SelLayout->addWidget(VertexRadioButton);
     SelLayout->addWidget(EdgeRadioButton);
     SelLayout->addWidget(FaceRadioButton);
     SelLayout->addWidget(WireRadioButton);
     SelLayout->addWidget(ShapeRadioButton);
+    SelLayout->addWidget(ObjectRadioButton);
     SelFilterSection->setContentLayout(*SelLayout);
     //End of Selection Filter Section
     
@@ -235,7 +238,10 @@ SelectedHighlightSection* highlightSection(){
     delete UseWindowCheckBox;
     UseWindowCheckBox=nullptr;
   }
-  
+  if(ObjectRadioButton){
+    delete ObjectRadioButton;
+    ObjectRadioButton=nullptr;
+  }
   }
   
 };
